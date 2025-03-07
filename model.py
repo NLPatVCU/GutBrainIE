@@ -9,7 +9,7 @@ import json
 
 
 #Deberta Model Class
-class DeBertaModel: 
+class DeBertaModel(L.LightningModule): 
 
         #Model Definition
         def __init__(self):
@@ -113,7 +113,7 @@ class TextDataset(Dataset):
 train_texts = []
 train_labels = []
 
-with open('trainData.json', 'r') as file:
+with open('trainData.json', 'r') as file: #we should make this not hard coded i.e. a command line arg
 
     data = json.load(file)
 
