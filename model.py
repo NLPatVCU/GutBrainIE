@@ -9,7 +9,7 @@ import json
 
 
 #Deberta Model Class
-class DeBertaModel(L.LightningModule): 
+class DeBertaModel(L.LightningModule): #added inheritance to lightning module here
 
         #Model Definition
         def __init__(self):
