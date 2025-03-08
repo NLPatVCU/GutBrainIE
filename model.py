@@ -1,6 +1,6 @@
 import lightning as L
 import torch
-from transformers import DebertaTokenizer, AutoModel
+from transformers import DebertaV2Tokenizer, AutoModel
 from torch.utils.data import DataLoader, Dataset
 from lightning.pytorch import Trainer
 import json
@@ -18,7 +18,6 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
 
             self.model = AutoModel.from_pretrained("microsoft/deberta-v3-base")
 
-            self.tokenizer = DebertaTokenizer.from_pretrained("microsoft/deberta-v3-base") #we are using v3
 
         def forward(self, input_ids, attention_mask):
 
@@ -104,7 +103,14 @@ class TextDataset(Dataset):
             'labels': torch.tensor(label, dtype=torch.long)
 
         }
-
+def map_labels(labels): #map labels to ints (model works with numbers, not string labels :) )
+    label_to_int = {}
+    counter = 1
+    for label in labels:
+        if label not in label_to_int:
+            label_to_int[label] = counter
+            counter+=1
+    return label_to_int
 
 # Prepare data
 
@@ -112,6 +118,7 @@ class TextDataset(Dataset):
 
 train_texts = []
 train_labels = []
+
 
 with open('trainData.json', 'r') as file: #we should make this not hard coded i.e. a command line arg
 
@@ -121,9 +128,11 @@ for item in data:
     train_texts.append(item['sample'])
     train_labels.append(item['relation'])
 
+label_to_int = map_labels(train_labels)
 
+train_labels = [label_to_int[label] for label in train_labels] # all this is doing is turning the labels into their respective int
 
-train_dataset = TextDataset(train_texts, train_labels, tokenizer = DebertaTokenizer.from_pretrained("microsoft/deberta-base") , max_len=128)
+train_dataset = TextDataset(train_texts, train_labels, tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=False), max_len=4096)
 
 train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 
