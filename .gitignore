@@ -1,2 +1,6 @@
 *.json
-**/lightning_logs
+lightning_logs/
+fast/
+gutbrainie2025/
+venv/
+
