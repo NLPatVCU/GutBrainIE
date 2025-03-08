@@ -18,7 +18,7 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
 
             self.model = AutoModel.from_pretrained("microsoft/deberta-v3-base")
 
-            self.tokenizer = DebertaTokenizer.from_pretrained("microsoft/deberta-base")
+            self.tokenizer = DebertaTokenizer.from_pretrained("microsoft/deberta-v3-base") #we are using v3
 
         def forward(self, input_ids, attention_mask):
 
