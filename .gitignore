@@ -1,1 +1,2 @@
 *.json
+**/lightning_logs
