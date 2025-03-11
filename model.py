@@ -134,9 +134,9 @@ label_to_int = map_labels(train_labels)
 
 train_labels = [label_to_int[label] for label in train_labels] # all this is doing is turning the labels into their respective int
 
-train_dataset = TextDataset(train_texts, train_labels, tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=False), max_len=4096)
+train_dataset = TextDataset(train_texts, train_labels, tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=False), max_len=4096) #TODO: CHANGE MAX LENGTH
 
-train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True) #TODO: change from 1 to 16 when it works
 
 # Initialize model
 
@@ -144,6 +144,6 @@ model = DeBertaModel()
 
 # Train model
 
-trainer = Trainer(max_epochs=3, precision="16-mixed")
+trainer = Trainer(max_epochs=3, precision="bf16-mixed") #TODO: keep precision, maybe increase GPUs if other two changes don't work out
 
 trainer.fit(model, train_loader)
