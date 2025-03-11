@@ -134,7 +134,7 @@ train_labels = [label_to_int[label] for label in train_labels] # all this is doi
 
 train_dataset = TextDataset(train_texts, train_labels, tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=False), max_len=4096)
 
-train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
+train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 
 # Initialize model
 
