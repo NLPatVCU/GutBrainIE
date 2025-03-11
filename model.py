@@ -3,6 +3,8 @@ import torch
 from transformers import DebertaV2Tokenizer, AutoModel
 from torch.utils.data import DataLoader, Dataset
 from lightning.pytorch import Trainer
+import torch.nn.functional as F
+import torch.nn as nn
 import json
 
 #Push to Binary RE Branch
@@ -17,12 +19,14 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             super().__init__()
 
             self.model = AutoModel.from_pretrained("microsoft/deberta-v3-base")
-
-
+            
+            self.linear = nn.Linear(768, 6)
         def forward(self, input_ids, attention_mask):
 
-            return self.model(input_ids, attention_mask=attention_mask)
-
+            result = self.model(input_ids, attention_mask=attention_mask).last_hidden_state
+            result = self.linear(result)
+            return result
+            
         #Training Step
         def training_step(self, batch, batch_idx):
 
@@ -31,11 +35,9 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             attention_mask = batch['attention_mask']
 
             labels = batch['labels']
-
-            outputs = self(input_ids, attention_mask)
-
-            loss = outputs.loss
-
+            preds = self(input_ids, attention_mask)
+            cls_toks = preds[:, 0, :]#using cls token - TODO: char is gonna fix this
+            loss = F.cross_entropy(cls_toks, labels) 
             self.log('train_loss', loss)
 
             return loss
@@ -142,6 +144,6 @@ model = DeBertaModel()
 
 # Train model
 
-trainer = Trainer(max_epochs=3, accelerator="gpu", devices=2)
+trainer = Trainer(max_epochs=3, precision="16-mixed")
 
 trainer.fit(model, train_loader)
