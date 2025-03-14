@@ -112,7 +112,9 @@ def preprocess_data(data):
             processed_data.append({
                 "sample": title + abstract,
                 "subject": subject_text,
+                "subject_label": relation.get("subject_label"),
                 "object": object_text,
+                "object_label": relation.get("object_label"),
                 "relation": predicate,
                 "relative_subject_start": relative_subject_start,
                 "relative_subject_end": relative_subject_end,
@@ -152,7 +154,9 @@ def preprocess_data(data):
                             processed_data.append({
                                 "sample": title + abstract,
                                 "subject": e.get("text_span", ""),
+                                "subject_label": subject_type,
                                 "object": e1.get("text_span", ""),
+                                "object_label": object_type,
                                 "relation": "NONE", #there's still no relation
                                 "relative_subject_start": relative_subject_start,
                                 "relative_subject_end": relative_subject_end,
