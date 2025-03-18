@@ -21,7 +21,6 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             self.model = AutoModel.from_pretrained("microsoft/deberta-v3-base")
             
             self.linear = nn.Linear(768, 6)
-
         def forward(self, input_ids, attention_mask):
 
             result = self.model(input_ids, attention_mask=attention_mask).last_hidden_state
@@ -136,9 +135,15 @@ label_to_int = map_labels(train_labels)
 
 train_labels = [label_to_int[label] for label in train_labels] # all this is doing is turning the labels into their respective int
 
+<<<<<<< HEAD
 train_dataset = TextDataset(train_texts, train_labels, tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=False),max_len=1000)
 
 train_loader = DataLoader(train_dataset, batch_size=10, shuffle=True)
+=======
+train_dataset = TextDataset(train_texts, train_labels, tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=False), max_len=4096) #TODO: CHANGE MAX LENGTH
+
+train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True) #TODO: change from 1 to 16 when it works
+>>>>>>> f0f26de2dfe93b98165ca59d427d69f2c5e7aae1
 
 # Initialize model
 
