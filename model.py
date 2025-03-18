@@ -119,8 +119,9 @@ def map_labels(labels): #map labels to ints (model works with numbers, not strin
 train_texts = []
 train_labels = []
 
+filename = sys.argv[1]
 
-with open('trainData.json', 'r') as file: #we should make this not hard coded i.e. a command line arg
+with open(filename, 'r') as file: 
 
     data = json.load(file)
 
@@ -132,9 +133,10 @@ label_to_int = map_labels(train_labels)
 
 train_labels = [label_to_int[label] for label in train_labels] # all this is doing is turning the labels into their respective int
 
-train_dataset = TextDataset(train_texts, train_labels, tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=False), max_len=4096)
+train_dataset = TextDataset(train_texts, train_labels, tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=False),max_len=1000)
 
-train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
+train_loader = DataLoader(train_dataset, batch_size=10, shuffle=True)
+
 
 # Initialize model
 
