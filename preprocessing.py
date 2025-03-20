@@ -1,6 +1,7 @@
 import json
 import sys
-
+from spacy.lang.en import English
+import spacy
 #valid relations in the format of (subject_type, object_type, predicate from the table )
 valid_relations = { #made this into an actual dictionary
     ("Anatomical Location", "Human"): "Located in",
@@ -70,9 +71,12 @@ file_path = sys.argv[1]
 with open(file_path, 'r', encoding='utf-8') as file:
     data = json.load(file)
 
-def preprocess_data(data):
+def preprocess_train_data(data):
     processed_data = []
-
+    counter = 0
+    counter2 = 0
+    nlp = spacy.load("en_core_sci_sm")
+    nlp.add_pipe("sentencizer")
     for doc_id, doc_data in data.items():
         metadata = doc_data.get("metadata", {})
         abstract = metadata.get("abstract", "")
@@ -80,6 +84,13 @@ def preprocess_data(data):
         relations = doc_data.get("relations", [])
         entities = doc_data.get("entities", [])
         used = []
+        title_doc = nlp(title)
+        abstract_doc = nlp(abstract)
+        """for span in doc.sents:
+            print(span.text)
+            print(abstract[span.start_char:span.end_char])
+            assert span.text == abstract[span.start_char:span.end_char]
+        exit()"""#just a test
 
         # Iteration over relations
         for relation in relations:
@@ -92,25 +103,56 @@ def preprocess_data(data):
             object_text = relation.get("object_text_span")
             subject_location = relation.get("subject_location")
             object_location = relation.get("object_location")
-            relative_subject_start = subject_start
-            relative_subject_end = subject_end
-            relative_object_start = object_start
-            relative_object_end = object_end
+            sample = ""
+            relative_subject_start= -1
+            relative_object_start = -1
+            relative_subject_end = -1
+            relative_object_end = -1
+            if subject_location!=object_location:
+                counter2+=1
 
             if subject_location == "abstract":
-                relative_subject_start += len(title)
-                relative_subject_end += len(title)
+                for span in abstract_doc.sents:
+                    if span.start_char<= subject_start and span.end_char>=subject_end+1:
+                        relative_subject_start = len(sample)+(subject_start-span.start_char)
+                        relative_subject_end = len(sample)+(subject_end-span.start_char)
+                        sample+=span.text
+            elif subject_location == "title":
+                for span in title_doc.sents:
+                    if span.start_char<=subject_start and span.end_char>=subject_end+1:
+                        relative_subject_start = len(sample)+(subject_start-span.start_char)
+                        relative_subject_end = len(sample)+(subject_end-span.start_char)
+                        sample+=span.text
             if object_location == "abstract":
-                relative_object_start += len(title)
-                relative_object_end += len(title)
+                for span in abstract_doc.sents:
+                    if span.start_char<= object_start and span.end_char>=object_end+1:
+                        if sample!=span.text:
+                            relative_object_start = len(sample)+(object_start-span.start_char)
+                            relative_object_end = len(sample)+(object_end-span.start_char)
+                            sample+=span.text
+                            if subject_location=="abstract":
+                                counter+=1
+                        elif sample == span.text:
+                            relative_object_start = (object_start-span.start_char)
+                            relative_object_end = (object_end-span.start_char)
+
+            elif object_location=="title":
+                for span in title_doc.sents:
+                    if span.start_char<=object_start and span.end_char>=object_end+1:
+                        if sample!=span.text:
+                            relative_object_start = len(sample)+(object_start-span.start_char)
+                            relative_object_end = len(sample)+(object_end-span.start_char)
+                            sample+=span.text
+                        elif sample == span.text:
+                            relative_object_start = (object_start-span.start_char)
+                            relative_object_end = (object_end-span.start_char)
             #print((title+abstract)[relative_subject_start:relative_subject_end])
             # print(subject_text)
-
-            assert (title + abstract)[relative_subject_start:relative_subject_end + 1] == subject_text
-            assert (title + abstract)[relative_object_start:relative_object_end + 1] == object_text
-
+            assert (sample)[relative_subject_start:relative_subject_end + 1] == subject_text
+            assert (sample)[relative_object_start:relative_object_end + 1] == object_text
+        
             processed_data.append({
-                "sample": title + abstract,
+                "sample": sample,
                 "subject": subject_text,
                 "subject_label": relation.get("subject_label"),
                 "object": object_text,
@@ -120,31 +162,58 @@ def preprocess_data(data):
                 "relative_subject_end": relative_subject_end,
                 "relative_object_start": relative_object_start,
                 "relative_object_end": relative_object_end,
-                "title_length": len(title)
+                "doc_id": doc_id
             })
-            used.append(((relative_subject_start, relative_subject_end), (relative_object_start, relative_object_end)))
+            used.append((sample,(relative_subject_start, relative_subject_end), (relative_object_start, relative_object_end)))
 
-        for e in entities:
+        for e in entities: #need this for preprocess_test_data
             for e1 in entities:
                 if e != e1:
-                     ##need to get types and check to see if 
-                    #it's even possible for a relation
-                    relative_subject_start = e.get("start_idx")
-                    relative_subject_end = e.get("end_idx")
-                    relative_object_start = e1.get("start_idx")
-                    relative_object_end = e1.get("end_idx")
+                    subject_start = e.get("start_idx")
+                    subject_end = e.get("end_idx")
+                    object_start = e1.get("start_idx")
+                    object_end = e1.get("end_idx")
                     subject_location = e.get("location")
                     object_location = e1.get("location")
-
+                    sample = ""
+                    relative_subject_start = -1
+                    relative_subject_end = -1
+                    relative_object_start = -1
+                    relative_object_end = -1
                     if subject_location == "abstract":
-                        relative_subject_start += len(title)
-                        relative_subject_end += len(title)
+                        for span in abstract_doc.sents:
+                            if span.start_char<= subject_start and span.end_char>=subject_end+1:
+                                relative_subject_start = len(sample)+(subject_start-span.start_char)
+                                relative_subject_end = len(sample)+(subject_end-span.start_char)
+                                sample+=span.text
+                    elif subject_location == "title":
+                        for span in title_doc.sents:
+                            if span.start_char<=subject_start and span.end_char>=subject_end+1:
+                                relative_subject_start = len(sample)+(subject_start-span.start_char)
+                                relative_subject_end = len(sample)+(subject_end-span.start_char)
+                                sample+=span.text
                     if object_location == "abstract":
-                        relative_object_start += len(title)
-                        relative_object_end += len(title)
+                        for span in abstract_doc.sents:
+                            if span.start_char<= object_start and span.end_char>=object_end+1 and sample!=span.text:
+                                relative_object_start = len(sample)+(object_start-span.start_char)
+                                relative_object_end = len(sample)+(object_end-span.start_char)
+                                sample+=span.text
+                            elif sample == span.text:
+                                relative_object_start = (object_start-span.start_char)
+                                relative_object_end = (object_end-span.start_char)
+
+                    elif object_location=="title":
+                        for span in title_doc.sents:
+                            if span.start_char<=object_start and span.end_char>=object_end+1 and sample!=span.text:
+                                relative_object_start = len(sample)+(object_start-span.start_char)
+                                relative_object_end = len(sample)+(object_end-span.start_char)
+                                sample+=span.text
+                            elif sample == span.text:
+                                relative_object_start = (object_start-span.start_char)
+                                relative_object_end = (object_end-span.start_char)
 
                     # Check if the relation is NONE and if the subject and object types are valid
-                    if ((relative_subject_start, relative_subject_end), (relative_object_start, relative_object_end)) not in used:
+                    if (sample, (relative_subject_start, relative_subject_end), (relative_object_start, relative_object_end)) not in used:
                         subject_type = e.get("label", "") #FIXED had wrong attribute
                         object_type = e1.get("label", "")
 
@@ -152,25 +221,26 @@ def preprocess_data(data):
                         if (subject_type, object_type) in valid_relations:
                            #  predicate = valid_relations[(subject_type, object_type)] we don't want to overwrite the no relatons
                             processed_data.append({
-                                "sample": title + abstract,
+                                "sample": sample,
                                 "subject": e.get("text_span", ""),
                                 "subject_label": subject_type,
                                 "object": e1.get("text_span", ""),
                                 "object_label": object_type,
-                                "relation": "NONE", #there's still no relation
+                                "relation": "NONE", #there's still no relation FOR TEST WE DON'T KNOW THIS
                                 "relative_subject_start": relative_subject_start,
                                 "relative_subject_end": relative_subject_end,
                                 "relative_object_start": relative_object_start,
                                 "relative_object_end": relative_object_end,
-                                "title_length": len(title)
+                                "doc_id":doc_id
                             })
 
                         else:
-                            used.append(((relative_subject_start, relative_subject_end), (relative_object_start, relative_object_end)))
-
+                            used.append((sample,(relative_subject_start, relative_subject_end), (relative_object_start, relative_object_end)))
+    print("Number of cross sentence (within abstract) entities in relations "+str(counter))
+    print("Number of cross sentence (accross title and abstract) entities in relations "+str(counter2))
     return processed_data
 
-processed_output = preprocess_data(data)
+processed_output = preprocess_train_data(data)
 
 # Save processed data
 output_file = sys.argv[2]

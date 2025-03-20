@@ -13,4 +13,5 @@ python -m venv venv
 source venv/bin/activate
 
 pip install -r requirements.txt
-CUDA_LAUNCH_BLOCKING=1 python model.py trainData.json
+python preprocessing.py ../gutbrainie2025/Annotations/Train/silver_quality/json_format/train_silver.json trainData.json
+##CUDA_LAUNCH_BLOCKING=1 python model.py trainData.json
