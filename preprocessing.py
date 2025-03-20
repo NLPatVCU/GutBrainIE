@@ -2,6 +2,9 @@ import json
 import sys
 from spacy.lang.en import English
 import spacy
+import random
+
+random.seed(42)
 #valid relations in the format of (subject_type, object_type, predicate from the table )
 valid_relations = { #made this into an actual dictionary
     ("Anatomical Location", "Human"): "Located in",
@@ -165,7 +168,6 @@ def preprocess_train_data(data):
                 "doc_id": doc_id
             })
             used.append((sample,(relative_subject_start, relative_subject_end), (relative_object_start, relative_object_end)))
-
         for e in entities: #need this for preprocess_test_data
             for e1 in entities:
                 if e != e1:
@@ -240,11 +242,51 @@ def preprocess_train_data(data):
     print("Number of cross sentence (accross title and abstract) entities in relations "+str(counter2))
     return processed_data
 
-processed_output = preprocess_train_data(data)
+def downsample_none(data, fraction=.5): #might want to make this generalized later, but who cares
+    tot_rel = 0
+    #first we need to figure out how much in total
+    dist_frac = {"Target": .152,
+            "Influence":.146,
+            "Located in":.137,
+            "Is linked to":.137,
+            "Affect":.121,
+            "Impact":.059,
+            "Used by":0.052,
+            "Interact":0.039,
+            "Change abundance":.035,
+            "Part of":.029,
+            "Is a": 0.025,
+            "Change effect":.024,
+            "Administered":.014,
+            "Change expression":.012,
+            "Strike":0.011,
+            "Produced by":0.005,
+            "Compared to":0.003
+    }
 
+    relations = {key:[] for key in dist_frac}
+    new_data = []
+    for relation in data:
+        if relation["relation"]!="NONE":
+            new_data.append(relation)
+        else:
+            tot_rel+=1
+            potential_relation=valid_relations[relation["subject_label"], relation["object_label"]]
+            relations[potential_relation].append(relation)
+    for relation in relations:
+        random.shuffle(relations[relation])
+    dist_num = {key:int(dist_frac[key]*tot_rel) for key in dist_frac}
+    sample_no_rel = [relations[key][:dist_num[key]] for key in dist_num]
+    for sample in sample_no_rel:
+        if sample!=[]:
+            new_data.extend(sample)
+    return new_data
+
+processed_output = preprocess_train_data(data)
+downsampled_processed_output = downsample_none(processed_output, .5)
 # Save processed data
 output_file = sys.argv[2]
 with open(output_file, "w", encoding="utf-8") as file:
-    json.dump(processed_output, file, indent=4)
+    json.dump(downsampled_processed_output, file, indent=4)
 
 print(f"Processed data saved to {output_file}")
