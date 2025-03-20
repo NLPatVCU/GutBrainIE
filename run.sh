@@ -13,5 +13,4 @@ python -m venv venv
 source venv/bin/activate
 
 pip install -r requirements.txt
-
-python model.py
+CUDA_LAUNCH_BLOCKING=1 python model.py trainData.json

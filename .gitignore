@@ -2,14 +2,6 @@
 fast/
 gutbrainie2025/
 venv/
-<<<<<<< HEAD
-<<<<<<< HEAD
 run.sh
-=======
 lightning_logs/
 *log
->>>>>>> f0f26de2dfe93b98165ca59d427d69f2c5e7aae1
-=======
-lightning_logs/
-*log
->>>>>>> f0f26de2dfe93b98165ca59d427d69f2c5e7aae1

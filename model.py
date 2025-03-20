@@ -6,6 +6,7 @@ from lightning.pytorch import Trainer
 import torch.nn.functional as F
 import torch.nn as nn
 import json
+import sys
 
 #Push to Binary RE Branch
 
@@ -19,8 +20,7 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             super().__init__()
 
             self.model = AutoModel.from_pretrained("microsoft/deberta-v3-base")
-            
-            self.linear = nn.Linear(768, 6)
+            self.linear = nn.Linear(768, 18)
         def forward(self, input_ids, attention_mask):
 
             result = self.model(input_ids, attention_mask=attention_mask).last_hidden_state
@@ -39,7 +39,7 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             cls_toks = preds[:, 0, :]#using cls token - TODO: char is gonna fix this
             loss = F.cross_entropy(cls_toks, labels) 
             self.log('train_loss', loss)
-
+            print(loss)
             return loss
 
 
@@ -108,6 +108,7 @@ class TextDataset(Dataset):
 def map_labels(labels): #map labels to ints (model works with numbers, not string labels :) )
     label_to_int = {}
     counter = 1
+    label_to_int["NONE"] = 0
     for label in labels:
         if label not in label_to_int:
             label_to_int[label] = counter
@@ -133,6 +134,8 @@ for item in data:
 
 label_to_int = map_labels(train_labels)
 
+print(label_to_int)
+
 train_labels = [label_to_int[label] for label in train_labels] # all this is doing is turning the labels into their respective int
 
 train_dataset = TextDataset(train_texts, train_labels, tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=False),max_len=1000)
@@ -145,6 +148,6 @@ model = DeBertaModel()
 
 # Train model
 
-trainer = Trainer(max_epochs=3, precision="bf16-mixed") #TODO: keep precision, maybe increase GPUs if other two changes don't work out
+trainer = Trainer(max_epochs=3, accelerator="gpu", precision="bf16-mixed") #TODO: keep precision, maybe increase GPUs if other two changes don't work out
 
 trainer.fit(model, train_loader)
