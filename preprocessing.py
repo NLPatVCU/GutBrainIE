@@ -1,6 +1,6 @@
 import json
 import sys
-
+from spacy.lang.en import English
 #valid relations in the format of (subject_type, object_type, predicate from the table )
 valid_relations = { #made this into an actual dictionary
     ("Anatomical Location", "Human"): "Located in",
@@ -72,7 +72,9 @@ with open(file_path, 'r', encoding='utf-8') as file:
 
 def preprocess_data(data):
     processed_data = []
-
+    
+    nlp = English()
+    nlp.add_pipe("sentencizer")
     for doc_id, doc_data in data.items():
         metadata = doc_data.get("metadata", {})
         abstract = metadata.get("abstract", "")
@@ -80,6 +82,13 @@ def preprocess_data(data):
         relations = doc_data.get("relations", [])
         entities = doc_data.get("entities", [])
         used = []
+        title_doc = nlp(title)
+        abstract_doc = nlp(abstract)
+        """for span in doc.sents:
+            print(span.text)
+            print(abstract[span.start_char:span.end_char])
+            assert span.text == abstract[span.start_char:span.end_char]
+        exit()"""#just a test
 
         # Iteration over relations
         for relation in relations:
@@ -92,22 +101,49 @@ def preprocess_data(data):
             object_text = relation.get("object_text_span")
             subject_location = relation.get("subject_location")
             object_location = relation.get("object_location")
-            relative_subject_start = subject_start
-            relative_subject_end = subject_end
-            relative_object_start = object_start
-            relative_object_end = object_end
-
+            sample = ""
+            relative_subject_start= -1
+            relative_object_start = -1
+            relative_subject_end = -1
+            relative_object_end = -1
             if subject_location == "abstract":
-                relative_subject_start += len(title)
-                relative_subject_end += len(title)
+                for span in abstract_doc.sents:
+                    if span.start_char<= subject_start and span.end_char>=subject_end+1:
+                        relative_subject_start = len(sample)+(subject_start-span.start_char)
+                        relative_subject_end = len(sample)+(subject_end-span.start_char)
+                        sample+=span.text
+            elif subject_location == "title":
+                for span in title_doc.sents:
+                    if span.start_char<=subject_start and span.end_char>=subject_end+1:
+                        relative_subject_start = len(sample)+(subject_start-span.start_char)
+                        relative_subject_end = len(sample)+(subject_end-span.start_char)
+                        sample+=span.text
             if object_location == "abstract":
-                relative_object_start += len(title)
-                relative_object_end += len(title)
+                for span in abstract_doc.sents:
+                    if span.start_char<= subject_start and span.end_char>=subject_end+1 and sample!=span.text:
+                        relative_object_start = len(sample)+(object_start-span.start_char)
+                        relative_object_end = len(sample)+(object_end-span.start_char)
+                        sample+=span.text
+                    elif sample == span.text:
+                        relative_object_start = (object_start-span.start_char)
+                        relative_object_end = (object_end-span.start_char)
+
+            elif object_location=="title":
+                for span in title_doc.sents:
+                    if span.start_char<=subject_start and span.end_char>=subject_end+1 and sample!=span.text:
+                        relative_object_start = len(sample)+(object_start-span.start_char)
+                        relative_object_end = len(sample)+(object_end-span.start_char)
+                        sample+=span.text
+                    elif sample == span.text:
+                        relative_object_start = (object_start-span.start_char)
+                        relative_object_end = (object_end-span.start_char)
             #print((title+abstract)[relative_subject_start:relative_subject_end])
             # print(subject_text)
-
-            assert (title + abstract)[relative_subject_start:relative_subject_end + 1] == subject_text
-            assert (title + abstract)[relative_object_start:relative_object_end + 1] == object_text
+            print(sample)
+            print((sample)[relative_object_start:relative_object_end + 1] )
+            print(object_text)
+            assert (sample)[relative_subject_start:relative_subject_end + 1] == subject_text
+            assert (sample)[relative_object_start:relative_object_end + 1] == object_text
 
             processed_data.append({
                 "sample": title + abstract,
