@@ -282,17 +282,6 @@ def downsample_none(data, fraction=.5): #might want to make this generalized lat
             new_data.extend(sample)
     return new_data
 
-# processed_output = preprocess_train_data(data)
-# downsampled_processed_output = downsample_none(processed_output, .5)
-# Save processed data
-# output_file = sys.argv[2]
-# with open(output_file, "w", encoding="utf-8") as file:
-#     json.dump(downsampled_processed_output, file, indent=4)
-# #huh
-# print(f"Processed data saved to {output_file}")
-
-
-
 
 
 def preprocess_test_data(data):
