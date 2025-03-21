@@ -282,14 +282,14 @@ def downsample_none(data, fraction=.5): #might want to make this generalized lat
             new_data.extend(sample)
     return new_data
 
-processed_output = preprocess_train_data(data)
-downsampled_processed_output = downsample_none(processed_output, .5)
+# processed_output = preprocess_train_data(data)
+# downsampled_processed_output = downsample_none(processed_output, .5)
 # Save processed data
-output_file = sys.argv[2]
-with open(output_file, "w", encoding="utf-8") as file:
-    json.dump(downsampled_processed_output, file, indent=4)
-#huh
-print(f"Processed data saved to {output_file}")
+# output_file = sys.argv[2]
+# with open(output_file, "w", encoding="utf-8") as file:
+#     json.dump(downsampled_processed_output, file, indent=4)
+# #huh
+# print(f"Processed data saved to {output_file}")
 
 
 
@@ -375,16 +375,19 @@ def preprocess_test_data(data):
 
     
 
-processed_test_output = preprocess_test_data(data)
 # Save processed data using the 3rd arg 
 output_file = sys.argv[2]
 train_or_test = sys.argv[3]
 with open(output_file, "w", encoding="utf-8") as file:
     
-    if train_or_test == 'train':
+    if train_or_test == 'train':        
+        processed_test_output = preprocess_train_data(data)
+        downsampled_processed_output = downsample_none(processed_test_output, .5)
         json.dump(downsampled_processed_output, file, indent=4)
         
     elif train_or_test == 'test':
+        
+        processed_test_output = preprocess_test_data(data)
         json.dump(processed_test_output, file, indent=4)
     else:
         print("Invalid argument for train_or_test. Please use 'train' or 'test'.")
