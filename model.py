@@ -114,6 +114,14 @@ def map_labels(labels): #map labels to ints (model works with numbers, not strin
             label_to_int[label] = counter
             counter+=1
     return label_to_int
+def get_max_len_sent(tokenizer, sents):
+    tok_sents = tokenizer(sents, truncation=False)
+    max_len = 0
+    for sent in tok_sents:
+        if len(sent)>max_len:
+            max_len = len(sent)
+    return max_len
+
 
 # Prepare data
 
@@ -137,10 +145,11 @@ label_to_int = map_labels(train_labels)
 print(label_to_int)
 
 train_labels = [label_to_int[label] for label in train_labels] # all this is doing is turning the labels into their respective int
+tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=False)
+max_len = get_max_len_sent(tokenizer, train_texts)
+train_dataset = TextDataset(train_texts, train_labels, tokenizer = tokenizer,max_len=max_len)
 
-train_dataset = TextDataset(train_texts, train_labels, tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=False),max_len=1000)
-
-train_loader = DataLoader(train_dataset, batch_size=10, shuffle=True)
+train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 
 # Initialize model
 
