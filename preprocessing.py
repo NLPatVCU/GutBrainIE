@@ -282,11 +282,109 @@ def downsample_none(data, fraction=.5): #might want to make this generalized lat
             new_data.extend(sample)
     return new_data
 
-processed_output = preprocess_train_data(data)
-downsampled_processed_output = downsample_none(processed_output, .5)
-# Save processed data
+
+
+def preprocess_test_data(data):
+    processed_data = []
+    nlp = spacy.load("en_core_sci_sm")
+    nlp.add_pipe("sentencizer")
+    
+    for doc_id, doc_data in data.items():
+        metadata = doc_data.get("metadata", {})
+        abstract = metadata.get("abstract", "")
+        title = metadata.get("title", "")
+        entities = doc_data.get("entities", [])
+        title_doc = nlp(title)
+        abstract_doc = nlp(abstract)
+        
+        
+        for e in entities: #need this for preprocess_test_data
+            for e1 in entities:
+                if e != e1:
+                    subject_start = e.get("start_idx")
+                    subject_end = e.get("end_idx")
+                    object_start = e1.get("start_idx")
+                    object_end = e1.get("end_idx")
+                    subject_location = e.get("location")
+                    object_location = e1.get("location")
+                    sample = ""
+                    relative_subject_start = -1
+                    relative_subject_end = -1
+                    relative_object_start = -1
+                    relative_object_end = -1
+                    
+                    if subject_location == "abstract":
+                        for span in abstract_doc.sents:
+                            if span.start_char<= subject_start and span.end_char>=subject_end+1:
+                                relative_subject_start = len(sample)+(subject_start-span.start_char)
+                                relative_subject_end = len(sample)+(subject_end-span.start_char)
+                                sample+=span.text
+                    elif subject_location == "title":
+                        for span in title_doc.sents:
+                            if span.start_char<=subject_start and span.end_char>=subject_end+1:
+                                relative_subject_start = len(sample)+(subject_start-span.start_char)
+                                relative_subject_end = len(sample)+(subject_end-span.start_char)
+                                sample+=span.text
+                    if object_location == "abstract":
+                        for span in abstract_doc.sents:
+                            if span.start_char<= object_start and span.end_char>=object_end+1 and sample!=span.text:
+                                relative_object_start = len(sample)+(object_start-span.start_char)
+                                relative_object_end = len(sample)+(object_end-span.start_char)
+                                sample+=span.text
+                            elif sample == span.text:
+                                relative_object_start = (object_start-span.start_char)
+                                relative_object_end = (object_end-span.start_char)
+
+                    elif object_location=="title":
+                        for span in title_doc.sents:
+                            if span.start_char<=object_start and span.end_char>=object_end+1 and sample!=span.text:
+                                relative_object_start = len(sample)+(object_start-span.start_char)
+                                relative_object_end = len(sample)+(object_end-span.start_char)
+                                sample+=span.text
+                            elif sample == span.text:
+                                relative_object_start = (object_start-span.start_char)
+                                relative_object_end = (object_end-span.start_char)
+
+                    processed_data.append({
+                        "sample": sample,
+                        "subject": e.get("text_span", ""),
+                        "subject_label": e.get("label", ""),
+                        "object": e1.get("text_span", ""),
+                        "object_label": e.get("label", ""),
+                        # "relation": "NONE", #there's still no relation FOR TEST WE DON'T KNOW THIS
+                        "relative_subject_start": relative_subject_start,
+                        "relative_subject_end": relative_subject_end,
+                        "relative_object_start": relative_object_start,
+                        "relative_object_end": relative_object_end,
+                        "doc_id":doc_id
+                    })                       
+    return processed_data
+
+    
+
+    
+
+# Save processed data using the 3rd arg 
 output_file = sys.argv[2]
+train_or_test = sys.argv[3]
 with open(output_file, "w", encoding="utf-8") as file:
-    json.dump(downsampled_processed_output, file, indent=4)
-#huh
+    
+    if train_or_test == 'train':        
+        processed_test_output = preprocess_train_data(data)
+        downsampled_processed_output = downsample_none(processed_test_output, .5)
+        json.dump(downsampled_processed_output, file, indent=4)
+        
+    elif train_or_test == 'test':
+        
+        processed_test_output = preprocess_test_data(data)
+        json.dump(processed_test_output, file, indent=4)
+    else:
+        print("Invalid argument for train_or_test. Please use 'train' or 'test'.")
+        sys.exit(1)
+
 print(f"Processed data saved to {output_file}")
+
+
+
+    
+    
