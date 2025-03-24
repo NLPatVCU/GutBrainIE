@@ -312,7 +312,10 @@ def preprocess_test_data(data):
                     relative_subject_end = -1
                     relative_object_start = -1
                     relative_object_end = -1
-                    
+                    subject_label = e.get("label", "")
+                    object_label = e1.get("label", "")
+                    if(subject_label, object_label) not in valid_relations:
+                        continue
                     if subject_location == "abstract":
                         for span in abstract_doc.sents:
                             if span.start_char<= subject_start and span.end_char>=subject_end+1:
