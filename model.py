@@ -43,7 +43,6 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             return loss
         def predict_step(self, batch , batch_idx, dataloader_idx=0):
             preds =  self(batch["input_ids"], batch["attention_mask"])
-            print(preds.shape)
             preds = preds[:, 0, :]#using cls token - TODO: char is gonna fix this
             preds = torch.argmax(preds, dim=1)
             return preds
@@ -57,7 +56,7 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
 #Data Preperation Class
 class TrainDataset(Dataset):
 
-    def __init__(self, texts, labels, tokenizer, max_len):
+    def __init__(self, texts, labels,spans, tokenizer, max_len):
 
         self.texts = texts #sentences
 
@@ -66,6 +65,7 @@ class TrainDataset(Dataset):
         self.tokenizer = tokenizer
 
         self.max_len = max_len
+        self.spans = spans
 
 
 
@@ -100,6 +100,21 @@ class TrainDataset(Dataset):
             truncation=True,
 
         )
+        subject_start_token = encoding.char_to_token(self.spans[0][0])
+        subject_end_token = encoding.char_to_token(self.spans[0][1]+1)
+        object_start_token = encoding.char_to_token(self.spans[1][0])
+        object_end_token = encoding.char_to_token(self.spans[1][1]+1)
+        entity_mask = [0 for x in encoding['input_ids'].flatten()]
+        for i in range(subject_start_token, subject_end_token+1):
+            entity_mask[i] = 1
+        for i in range(object_start_token, object_end_token+1):
+            entity_mask[i]=2
+        test_ids = [encoding["input_ids".flatten()][i] for i in range(len(entity_mask)) if entity_mask[i]==1 or entity_mask[i]==2]
+        print(f"decoded: {self.tokenizer.decode(test_ids)}")
+        print(text)
+        print(text[subject_start_token:subject_end_token])
+        print(text[object_start_token:object_end_token])
+        exit()
 
         return {
 
@@ -107,18 +122,20 @@ class TrainDataset(Dataset):
 
             'attention_mask': encoding['attention_mask'].flatten(),
 
-            'labels': torch.tensor(label, dtype=torch.long)
+            'labels': torch.tensor(label, dtype=torch.long),
+            "entity_mask": torch.tensor(entity_mask, dtype=torch.long)
 
         }
 class TestDataset(Dataset):
 
-    def __init__(self, texts, tokenizer, max_len):
+    def __init__(self, texts, spans, tokenizer, max_len):
 
         self.texts = texts #sentences
 
         self.tokenizer = tokenizer
 
         self.max_len = max_len
+        self.spans = spans
 
 
 
@@ -151,12 +168,23 @@ class TestDataset(Dataset):
             truncation=True,
 
         )
+        subject_start_token = encoding.char_to_token(self.spans[0][0])
+        subject_end_token = encoding.char_to_token(self.spans[0][1]+1)
+        object_start_token = encoding.char_to_token(self.spans[1][0])
+        object_end_token = encoding.char_to_token(self.spans[1][1]+1)
+        entity_mask = [0 for x in encoding['input_ids'].flatten()]
+        for i in range(subject_start_token, subject_end_token+1):
+            entity_mask[i] = 1
+        for i in range(object_start_token, object_end_token+1):
+            entity_mask[i]=2
 
         return {
 
             'input_ids': encoding['input_ids'].flatten(),
 
             'attention_mask': encoding['attention_mask'].flatten(),
+            "entity_mask": torch.tensor(entity_mask, dtype=torch.long)
+
 
         }
 
@@ -181,12 +209,16 @@ def get_max_len_sent(tokenizer, sents):
 # Prepare data
 
 # Open and read the JSON file
-load_checkpoint = True
-checkpoint = 'lightning_logs/version_52/checkpoints/epoch=0-step=2802.ckpt'
-train_texts = []
+load_checkpoint = False
+checkpoint=None
+if len(sys.argv)==4:
+    load_checkpoint = True
+    checkpoint = sys.argv[3]
+    train_texts = []
 train_labels = []
-
+train_spans = []
 test_texts = []
+test_spans = []
 
 traindata = None
 testdata = None
@@ -200,20 +232,21 @@ with open(trainfile, 'r') as file:
 for item in traindata:
     train_texts.append(item['sample'])
     train_labels.append(item['relation'])
-
+    train_spans.append(((item["relative_subject_start"], item["relative_subject_end"]),(item["relative_object_start"], item["relative_object_end"])))
 with open(testfile, "r") as file:
     testdata = json.load(file)
 for item in testdata:
     test_texts.append(item["sample"])
+    test_spans.append(((item["relative_subject_start"], item["relative_subject_end"]),(item["relative_object_start"], item["relative_object_end"])))
 label_to_int = map_labels(train_labels)
 
 print(label_to_int)
 
 train_labels = [label_to_int[label] for label in train_labels] # all this is doing is turning the labels into their respective int
-tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=False)
+tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=True)
 max_len = get_max_len_sent(tokenizer, train_texts)+50 #just some leeway
-train_dataset = TrainDataset(train_texts, train_labels, tokenizer = tokenizer,max_len=max_len)
-test_dataset = TestDataset(test_texts, tokenizer=tokenizer, max_len=max_len)
+train_dataset = TrainDataset(train_texts, train_labels,train_spans, tokenizer = tokenizer,max_len=max_len)
+test_dataset = TestDataset(test_texts,test_spans, tokenizer=tokenizer, max_len=max_len)
 
 train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
