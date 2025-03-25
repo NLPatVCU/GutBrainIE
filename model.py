@@ -42,7 +42,11 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             print(loss)
             return loss
         def predict_step(self, batch , batch_idx, dataloader_idx=0):
-            return self(batch["input_ids"], batch["attention_mask"])
+            preds =  self(batch["input_ids"], batch["attention_mask"])
+            print(preds.shape)
+            preds = preds[:, 0, :]#using cls token - TODO: char is gonna fix this
+            preds = torch.argmax(preds, dim=1)
+            return preds
 
         #Optimizers
         def configure_optimizers(self):
