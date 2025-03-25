@@ -315,7 +315,6 @@ def preprocess_test_data(data):
                     subject_label = e.get("label", "")
                     object_label = e1.get("label", "")
                     if(subject_label, object_label) not in valid_relations:
-                        print(f"{subject_label}, {object_label}")
                         continue
                     if subject_location == "abstract":
                         for span in abstract_doc.sents:
@@ -362,7 +361,6 @@ def preprocess_test_data(data):
                         "relative_object_end": relative_object_end,
                         "doc_id":doc_id
                     })                       
-                    print(f"({subject_label}, {object_label})")
     return processed_data
 
     

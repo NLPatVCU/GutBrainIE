@@ -130,16 +130,25 @@ def get_max_len_sent(tokenizer, sents):
 train_texts = []
 train_labels = []
 
-filename = sys.argv[1]
+test_texts = []
 
-with open(filename, 'r') as file: 
+traindata = None
+testdata = None
 
-    data = json.load(file)
+trainfile = sys.argv[1]
+testfile = sys.argv[2]
+with open(trainfile, 'r') as file: 
 
-for item in data:
+    traindata = json.load(file)
+
+for item in traindata:
     train_texts.append(item['sample'])
     train_labels.append(item['relation'])
 
+with open(testfile, "r") as file:
+    testdata = json.load(file)
+for item in testdata:
+    test_texts.append(item["sample"]
 label_to_int = map_labels(train_labels)
 
 print(label_to_int)
