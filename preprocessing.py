@@ -7,66 +7,66 @@ import random
 random.seed(42)
 #valid relations in the format of (subject_type, object_type, predicate from the table )
 valid_relations = { #made this into an actual dictionary
-    ("Anatomical Location", "Human"): "Located in",
-    ("Anatomical Location", "Animal"): "Located in",
-("Bacteria", "Bacteria"): "Interact",
-    ("Bacteria", "Chemical"): "Interact",
-    ("Bacteria", "Drug"): "Interact",
-    ("Bacteria", "DDF"): "Influence",
-    ("Bacteria", "Gene"): "Change expression",
-    ("Bacteria", "Human" ):"Located in",
-    ("Bacteria", "Animal" ):"Located in",
-    ("Bacteria", "Microbiome" ):"Part of",
-    ("Chemical", "Anatomical Location" ):"Located in",
-    ("Chemical", "Human" ):"Located in",
-    ("Chemical", "Animal" ):"Located in",
-    ("Chemical", "Chemical"):"Interact",
-    ("Chemical", "Microbiome" ):"Impact",
-    ("Chemical", "Microbiome" ):"Produced by",
-    ("Chemical", "Bacteria" ):"Impact",
-    ("Dietary Supplement" ,"Bacteria"): "Impact",
-    ("Drug", "Bacteria" ):"Impact",
-    ("Food", "Bacteria" ):"Impact",
-    ("Chemical", "Microbiome" ):"Impact",
-    ("Dietary Supplement", "Microbiome"): "Impact",
-    ("Drug", "Microbiome" ):"Impact",
-    ("Food", "Microbiome" ):"Impact",
-    ("Chemical", "DDF" ):"Influence",
-    ("Dietary Supplement", "DDF" ):"Influence",
-    ("Drug", "DDF" ):"Influence",
-    ("Food", "DDF" ):"Influence",
-    ("Chemical", "Gene" ):"Change expression",
-    ("Dietary Supplement", "Gene" ):"Change expression",
-    ("Drug", "Gene" ):"Change expression",
-    ("Food", "Gene" ):"Change expression",
-    ("Chemical", "Human" ):"Administered",
-    ("Dietary Supplement", "Human" ):"Administered",
-    ("Drug", "Human" ):"Administered",
-    ("Food", "Human" ):"Administered",
-    ("Chemical", "Animal" ):"Administered",
-    ("Dietary Supplement", "Animal" ):"Administered",
-    ("Drug", "Animal" ):"Administered",
-    ("Food", "Animal" ):"Administered",
-    ("DDF", "Anatomical Location" ):"Strike",
-    ("DDF", "Bacteria" ):"Change abundance",
-    ("DDF", "Microbiome" ):"Change abundance",
-    ("DDF", "Chemical" ):"Interact",
+    ("anatomical location", "human"): "Located in",
+    ("anatomical location", "animal"): "Located in",
+("bacteria", "bacteria"): "Interact",
+    ("bacteria", "chemical"): "Interact",
+    ("bacteria", "drug"): "Interact",
+    ("bacteria", "DDF"): "Influence",
+    ("bacteria", "gene"): "Change expression",
+    ("bacteria", "human" ):"Located in",
+    ("bacteria", "animal" ):"Located in",
+    ("bacteria", "microbiome" ):"Part of",
+    ("chemical", "anatomical location" ):"Located in",
+    ("chemical", "human" ):"Located in",
+    ("chemical", "animal" ):"Located in",
+    ("chemical", "chemical"):"Interact",
+    ("chemical", "microbiome" ):"Impact",
+    ("chemical", "microbiome" ):"Produced by",
+    ("chemical", "bacteria" ):"Impact",
+    ("dietary supplement" ,"Bacteria"): "Impact",
+    ("drug", "bacteria" ):"Impact",
+    ("food", "bacteria" ):"Impact",
+    ("chemical", "microbiome" ):"Impact",
+    ("dietary supplement", "microbiome"): "Impact",
+    ("drug", "microbiome" ):"Impact",
+    ("food", "microbiome" ):"Impact",
+    ("chemical", "DDF" ):"Influence",
+    ("dietary supplement", "DDF" ):"Influence",
+    ("drug", "DDF" ):"Influence",
+    ("food", "DDF" ):"Influence",
+    ("chemical", "gene" ):"Change expression",
+    ("dietary supplement", "gene" ):"Change expression",
+    ("drug", "gene" ):"Change expression",
+    ("food", "gene" ):"Change expression",
+    ("chemical", "human" ):"Administered",
+    ("dietary supplement", "human" ):"Administered",
+    ("drug", "human" ):"Administered",
+    ("food", "human" ):"Administered",
+    ("chemical", "animal" ):"Administered",
+    ("dietary supplement", "animal" ):"Administered",
+    ("drug", "animal" ):"Administered",
+    ("food", "animal" ):"Administered",
+    ("DDF", "anatomical location" ):"Strike",
+    ("DDF", "bacteria" ):"Change abundance",
+    ("DDF", "microbiome" ):"Change abundance",
+    ("DDF", "chemical" ):"Interact",
     ("DDF", "DDF" ):"Affect",
     ("DDF", "DDF" ):"Is a",
-    ("DDF", "Human" ):"Target",
-    ("DDF", "Animal" ):"Target",
-    ("Drug", "Chemical" ):"Interact",
-    ("Drug", "Chemical" ):"Interact",
-    ("Drug", "DDF" ):"Change effect",
-    ("Human", "Biomedical Technique" ):"Used by",
-    ("Animal", "Biomedical Technique" ):"Used by",
-    ("Microbiome", "Biomedical Technique" ):"Used by",
-    ("Microbiome", "Anatomical Location" ):"Located in",
-    ("Microbiome", "Human" ):"Located in",
-    ("Microbiome", "Animal" ):"Located in",
-    ("Microbiome", "Gene" ):"Change expression",
-    ("Microbiome", "DDF" ):"Is linked to",
-    ("Microbiome", "Microbiome" ):"Compared to"
+    ("DDF", "human" ):"Target",
+    ("DDF", "animal" ):"Target",
+    ("drug", "chemical" ):"Interact",
+    ("drug", "chemical" ):"Interact",
+    ("drug", "DDF" ):"Change effect",
+    ("human", "biomedical technique" ):"Used by",
+    ("animal", "biomedical technique" ):"Used by",
+    ("microbiome", "biomedical technique" ):"Used by",
+    ("microbiome", "anatomical location" ):"Located in",
+    ("microbiome", "human" ):"Located in",
+    ("microbiome", "animal" ):"Located in",
+    ("microbiome", "gene" ):"Change expression",
+    ("microbiome", "DDF" ):"Is linked to",
+    ("microbiome", "microbiome" ):"Compared to"
 }
 
 # Loading the dataSet
@@ -271,7 +271,7 @@ def downsample_none(data, fraction=.5): #might want to make this generalized lat
             new_data.append(relation)
         else:
             tot_rel+=1
-            potential_relation=valid_relations[relation["subject_label"], relation["object_label"]]
+            potential_relation=valid_relations[relation["subject_label"], relation["object_label"]] #need to fix
             relations[potential_relation].append(relation)
     for relation in relations:
         random.shuffle(relations[relation])
@@ -315,6 +315,7 @@ def preprocess_test_data(data):
                     subject_label = e.get("label", "")
                     object_label = e1.get("label", "")
                     if(subject_label, object_label) not in valid_relations:
+                        print(f"{subject_label}, {object_label}")
                         continue
                     if subject_location == "abstract":
                         for span in abstract_doc.sents:
@@ -353,7 +354,7 @@ def preprocess_test_data(data):
                         "subject": e.get("text_span", ""),
                         "subject_label": e.get("label", ""),
                         "object": e1.get("text_span", ""),
-                        "object_label": e.get("label", ""),
+                        "object_label": e1.get("label", ""),
                         # "relation": "NONE", #there's still no relation FOR TEST WE DON'T KNOW THIS
                         "relative_subject_start": relative_subject_start,
                         "relative_subject_end": relative_subject_end,
@@ -361,6 +362,7 @@ def preprocess_test_data(data):
                         "relative_object_end": relative_object_end,
                         "doc_id":doc_id
                     })                       
+                    print(f"({subject_label}, {object_label})")
     return processed_data
 
     
