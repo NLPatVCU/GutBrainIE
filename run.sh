@@ -15,5 +15,5 @@ source venv/bin/activate
 pip install -r requirements.txt
 ##python preprocessing.py ../GutBrainIE_Full_Collection_2025/Annotations/Train/platinum_quality/json_format/train_platinum.json trainData.json train
 ##python preprocessing.py ../GutBrainIE_Full_Collection_2025/Annotations/Dev/json_format/dev.json devData.json test
-CUDA_LAUNCH_BLOCKING=1 python model.py trainData.json devData.json lightning_logs/version_52/checkpoints/epoch=0-step=2802.ckpt
+CUDA_LAUNCH_BLOCKING=1 python model.py trainData.json devData.json
 

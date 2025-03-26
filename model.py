@@ -20,11 +20,20 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             super().__init__()
 
             self.model = AutoModel.from_pretrained("microsoft/deberta-v3-base")
-            self.linear = nn.Linear(768, 18)
+            self.linear = nn.Linear(768*2, 18)
         def forward(self, input_ids, attention_mask, entity_mask):
 
             result = self.model(input_ids, attention_mask=attention_mask).last_hidden_state
-            entity
+            entity1_mask = entity_mask==1
+            entity2_mask = entity_mask==2
+
+            entity_1 = result[entity1_mask]
+            entity_2 = result[entity2_mask]
+
+            entity_1 = entity_1.mean(dim=0)
+            entity_2 = entity_2.mean(dim=0)
+
+            result = torch.cat((entity_1, entity2), 0)
             result = self.linear(result)
             return result
             
@@ -209,7 +218,7 @@ checkpoint=None
 if len(sys.argv)==4:
     load_checkpoint = True
     checkpoint = sys.argv[3]
-    train_texts = []
+train_texts = []
 train_labels = []
 train_spans = []
 test_texts = []
