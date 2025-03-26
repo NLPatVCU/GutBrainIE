@@ -1,6 +1,6 @@
 import lightning as L
 import torch
-from transformers import DebertaV2Tokenizer, AutoModel
+from transformers import DebertaV2Tokenizer, AutoModel, DebertaV2TokenizerFast
 from torch.utils.data import DataLoader, Dataset
 from lightning.pytorch import Trainer
 import torch.nn.functional as F
@@ -21,9 +21,10 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
 
             self.model = AutoModel.from_pretrained("microsoft/deberta-v3-base")
             self.linear = nn.Linear(768, 18)
-        def forward(self, input_ids, attention_mask):
+        def forward(self, input_ids, attention_mask, entity_mask):
 
             result = self.model(input_ids, attention_mask=attention_mask).last_hidden_state
+            entity
             result = self.linear(result)
             return result
             
@@ -33,9 +34,10 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             input_ids = batch['input_ids']
 
             attention_mask = batch['attention_mask']
-
+            
+            entity_mask = batch["entity_mask"]
             labels = batch['labels']
-            preds = self(input_ids, attention_mask)
+            preds = self(input_ids, attention_mask, entity_mask)
             cls_toks = preds[:, 0, :]#using cls token - TODO: char is gonna fix this
             loss = F.cross_entropy(cls_toks, labels) 
             self.log('train_loss', loss)
@@ -100,21 +102,16 @@ class TrainDataset(Dataset):
             truncation=True,
 
         )
-        subject_start_token = encoding.char_to_token(self.spans[0][0])
-        subject_end_token = encoding.char_to_token(self.spans[0][1]+1)
-        object_start_token = encoding.char_to_token(self.spans[1][0])
-        object_end_token = encoding.char_to_token(self.spans[1][1]+1)
+        subject_start_token = encoding.char_to_token(self.spans[idx][0][0])
+        subject_end_token = encoding.char_to_token(self.spans[idx][0][1]+2)
+        object_start_token = encoding.char_to_token(self.spans[idx][1][0])
+        object_end_token = encoding.char_to_token(self.spans[idx][1][1]+2)
         entity_mask = [0 for x in encoding['input_ids'].flatten()]
-        for i in range(subject_start_token, subject_end_token+1):
+        for i in range(subject_start_token, subject_end_token):
             entity_mask[i] = 1
-        for i in range(object_start_token, object_end_token+1):
+        for i in range(object_start_token, object_end_token):
             entity_mask[i]=2
         test_ids = [encoding["input_ids".flatten()][i] for i in range(len(entity_mask)) if entity_mask[i]==1 or entity_mask[i]==2]
-        print(f"decoded: {self.tokenizer.decode(test_ids)}")
-        print(text)
-        print(text[subject_start_token:subject_end_token])
-        print(text[object_start_token:object_end_token])
-        exit()
 
         return {
 
@@ -168,14 +165,14 @@ class TestDataset(Dataset):
             truncation=True,
 
         )
-        subject_start_token = encoding.char_to_token(self.spans[0][0])
-        subject_end_token = encoding.char_to_token(self.spans[0][1]+1)
-        object_start_token = encoding.char_to_token(self.spans[1][0])
-        object_end_token = encoding.char_to_token(self.spans[1][1]+1)
+        subject_start_token = encoding.char_to_token(self.spans[idx][0][0])
+        subject_end_token = encoding.char_to_token(self.spans[idx][0][1]+1)
+        object_start_token = encoding.char_to_token(self.spans[idx][1][0])
+        object_end_token = encoding.char_to_token(self.spans[idx][1][1]+1)
         entity_mask = [0 for x in encoding['input_ids'].flatten()]
-        for i in range(subject_start_token, subject_end_token+1):
+        for i in range(subject_start_token, subject_end_token):
             entity_mask[i] = 1
-        for i in range(object_start_token, object_end_token+1):
+        for i in range(object_start_token, object_end_token):
             entity_mask[i]=2
 
         return {
@@ -198,14 +195,12 @@ def map_labels(labels): #map labels to ints (model works with numbers, not strin
             counter+=1
     return label_to_int
 def get_max_len_sent(tokenizer, sents):
-    tok_sents = tokenizer(sents, truncation=False)
+    tok_sents = tokenizer(sents, truncation=False)  # Tokenize sentences
     max_len = 0
-    for sent in tok_sents:
-        if len(sent)>max_len:
+    for sent in tok_sents["input_ids"]:  # Iterate over tokenized sequences
+        if len(sent) > max_len:
             max_len = len(sent)
     return max_len
-
-
 # Prepare data
 
 # Open and read the JSON file
@@ -243,7 +238,8 @@ label_to_int = map_labels(train_labels)
 print(label_to_int)
 
 train_labels = [label_to_int[label] for label in train_labels] # all this is doing is turning the labels into their respective int
-tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=True)
+#tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=True)
+tokenizer = DebertaV2TokenizerFast.from_pretrained("microsoft/deberta-v3-base")
 max_len = get_max_len_sent(tokenizer, train_texts)+50 #just some leeway
 train_dataset = TrainDataset(train_texts, train_labels,train_spans, tokenizer = tokenizer,max_len=max_len)
 test_dataset = TestDataset(test_texts,test_spans, tokenizer=tokenizer, max_len=max_len)
