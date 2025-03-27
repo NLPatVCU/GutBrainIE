@@ -1,9 +1,10 @@
 import json
+import argparse
 import sys
 from spacy.lang.en import English
 import spacy
 import random
-
+from sklearn.model_selection import StratifiedShuffleSplit
 random.seed(42)
 #valid relations in the format of (subject_type, object_type, predicate from the table )
 valid_relations = { #made this into an actual dictionary
@@ -68,11 +69,6 @@ valid_relations = { #made this into an actual dictionary
     ("microbiome", "DDF" ):"Is linked to",
     ("microbiome", "microbiome" ):"Compared to"
 }
-
-# Loading the dataSet
-file_path = sys.argv[1]
-with open(file_path, 'r', encoding='utf-8') as file:
-    data = json.load(file)
 
 def preprocess_train_data(data):
     processed_data = []
@@ -366,26 +362,70 @@ def preprocess_test_data(data):
     
 
     
+def train_val_split(data):
+    indices = []
+    classes = []
+    counter = 0
+    for d in data:
+        indices.append(counter)
+        counter+=1
+        classes.append(d["relation"])
+    sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
+    val = None
+    train= None
+    for i, (train_index, test_index) in enumerate(sss.split(indices, classes)):
+        train = [data[x] for x in train_index]
+        val = [data[x] for x in test_index]
+    return train, val
 
 # Save processed data using the 3rd arg 
+parser = argparse.ArgumentParser(
+                    prog='preprocessing.py',
+                    description='Preprocessing for our RE system!!',
+                    epilog='~Fin')
 output_file = sys.argv[2]
-train_or_test = sys.argv[3]
-with open(output_file, "w", encoding="utf-8") as file:
-    
-    if train_or_test == 'train':        
-        processed_test_output = preprocess_train_data(data)
-        downsampled_processed_output = downsample_none(processed_test_output, .5)
-        json.dump(downsampled_processed_output, file, indent=4)
-        
-    elif train_or_test == 'test':
-        
-        processed_test_output = preprocess_test_data(data)
-        json.dump(processed_test_output, file, indent=4)
-    else:
-        print("Invalid argument for train_or_test. Please use 'train' or 'test'.")
-        sys.exit(1)
+parser.add_argument("--train_out", help="output path to json file for training data")
+parser.add_argument("--val_out", help = "output path to json file for val data")
+parser.add_argument("--test_out", help = "output path to json file for test data")
+parser.add_argument("--train_in", help = "input path training data (json)")
+parser.add_argument("--test_in", help = "input path to test data (json)")
 
-print(f"Processed data saved to {output_file}")
+args = parser.parse_args()
+train_out = args.train_out
+val_out = args.val_out
+test_out = args.test_out
+train_in = args.train_in
+test_in = args.test_in
+if train_in is not None:
+    if train_out is None:
+        print("Please provide output path for train data")
+        exit(1)
+            
+    with open(train_in, 'r', encoding='utf-8') as train_in_file:
+        data = json.load(train_in_file)
+        processed_train_output = preprocess_train_data(data)
+        downsampled_processed_output = downsample_none(processed_train_output, .5)
+        if val_out is not None:
+            with open(train_out, "w", encoding="utf-8") as train_out_file:
+                train, val = train_val_split(downsampled_processed_output)
+                json.dump(train, train_out_file, indent=4)
+                with open(val_out, "w", encoding="utf-8") as val_out_file:
+                    json.dump(val, val_out_file, indent=4)
+        else:
+            with open(train_out, "w", encoding="utf-8") as train_out_file:
+                json.dump(downsampled_processed_output, train_out_file, indent=4)
+        
+if test_in is not None:
+    if test_out is None:
+        print("Please provide output path for test data")
+        exit(1)
+    with open(test_in, "r", encoding="utf-8") as test_in_file:
+        data = json.load(test_in_file)
+        processed_test_output = preprocess_test_data(data)
+        with open(test_out, "w", encoding="utf-8") as test_out_file:
+            json.dump(processed_test_output, test_out_file, indent=4)
+
+print(f"Done!! :)")
 
 
 

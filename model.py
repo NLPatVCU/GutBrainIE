@@ -7,6 +7,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 import json
 import sys
+from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 
 #Push to Binary RE Branch
 
@@ -21,22 +22,25 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
 
             self.model = AutoModel.from_pretrained("microsoft/deberta-v3-base")
             self.linear = nn.Linear(768*2, 18)
+
         def forward(self, input_ids, attention_mask, entity_mask):
+            result = self.model(input_ids, attention_mask=attention_mask).last_hidden_state  # Shape: (batch_size, seq_len, 768)
 
-            result = self.model(input_ids, attention_mask=attention_mask).last_hidden_state
-            entity1_mask = entity_mask==1
-            entity2_mask = entity_mask==2
+            entity1_mask = (entity_mask == 1).unsqueeze(-1)  # Shape: (batch_size, seq_len, 1)
+            entity2_mask = (entity_mask == 2).unsqueeze(-1)  # Shape: (batch_size, seq_len, 1)
 
-            entity_1 = result[entity1_mask]
-            entity_2 = result[entity2_mask]
+            entity_1 = result * entity1_mask  # Shape: (batch_size, seq_len, 768)
+            entity_2 = result * entity2_mask  # Shape: (batch_size, seq_len, 768)
 
-            entity_1 = entity_1.mean(dim=0)
-            entity_2 = entity_2.mean(dim=0)
+            entity_1 = entity_1.sum(dim=1) / entity1_mask.sum(dim=1)#.clamp(min=1)  # Shape: (batch_size, 768)
+            entity_2 = entity_2.sum(dim=1) / entity2_mask.sum(dim=1)#.clamp(min=1)  # Shape: (batch_size, 768)
 
-            result = torch.cat((entity_1, entity2), 0)
-            result = self.linear(result)
+            result = torch.cat((entity_1, entity_2), dim=-1)  # Shape: (batch_size, 768 * 2)
+
+            result = self.linear(result)  # Shape: (batch_size, 18)
+    
             return result
-            
+          
         #Training Step
         def training_step(self, batch, batch_idx):
 
@@ -47,14 +51,23 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             entity_mask = batch["entity_mask"]
             labels = batch['labels']
             preds = self(input_ids, attention_mask, entity_mask)
-            cls_toks = preds[:, 0, :]#using cls token - TODO: char is gonna fix this
-            loss = F.cross_entropy(cls_toks, labels) 
+            loss = F.cross_entropy(preds, labels) 
             self.log('train_loss', loss)
-            print(loss)
             return loss
+        def validation_step(self, batch, batch_idx):
+            # this is the validation loop
+            input_ids = batch['input_ids']
+
+            attention_mask = batch['attention_mask']
+            
+            entity_mask = batch["entity_mask"]
+            labels = batch['labels']
+            preds = self(input_ids, attention_mask, entity_mask)
+            val_loss = F.cross_entropy(preds, labels) 
+
+            self.log("val_loss", val_loss)
         def predict_step(self, batch , batch_idx, dataloader_idx=0):
-            preds =  self(batch["input_ids"], batch["attention_mask"])
-            preds = preds[:, 0, :]#using cls token - TODO: char is gonna fix this
+            preds =  self(batch["input_ids"], batch["attention_mask"], batch["entity_mask"])
             preds = torch.argmax(preds, dim=1)
             return preds
 
@@ -112,15 +125,15 @@ class TrainDataset(Dataset):
 
         )
         subject_start_token = encoding.char_to_token(self.spans[idx][0][0])
-        subject_end_token = encoding.char_to_token(self.spans[idx][0][1]+2)
+        subject_end_token = encoding.char_to_token(self.spans[idx][0][1]+1)
         object_start_token = encoding.char_to_token(self.spans[idx][1][0])
-        object_end_token = encoding.char_to_token(self.spans[idx][1][1]+2)
+        object_end_token = encoding.char_to_token(self.spans[idx][1][1]+1)
         entity_mask = [0 for x in encoding['input_ids'].flatten()]
         for i in range(subject_start_token, subject_end_token):
             entity_mask[i] = 1
         for i in range(object_start_token, object_end_token):
             entity_mask[i]=2
-        test_ids = [encoding["input_ids".flatten()][i] for i in range(len(entity_mask)) if entity_mask[i]==1 or entity_mask[i]==2]
+        test_ids = [encoding["input_ids"].flatten()[i] for i in range(len(entity_mask)) if entity_mask[i]==1 or entity_mask[i]==2]
 
         return {
 
@@ -215,28 +228,44 @@ def get_max_len_sent(tokenizer, sents):
 # Open and read the JSON file
 load_checkpoint = False
 checkpoint=None
-if len(sys.argv)==4:
+if len(sys.argv)==5:
     load_checkpoint = True
-    checkpoint = sys.argv[3]
+    checkpoint = sys.argv[4]
 train_texts = []
 train_labels = []
 train_spans = []
+
+val_texts = []
+val_labels = []
+val_spans = []
+
 test_texts = []
 test_spans = []
 
 traindata = None
 testdata = None
-
+valdata=None
 trainfile = sys.argv[1]
-testfile = sys.argv[2]
+valfile = sys.argv[2]
+testfile = sys.argv[3]
 with open(trainfile, 'r') as file: 
-
     traindata = json.load(file)
 
 for item in traindata:
     train_texts.append(item['sample'])
     train_labels.append(item['relation'])
     train_spans.append(((item["relative_subject_start"], item["relative_subject_end"]),(item["relative_object_start"], item["relative_object_end"])))
+
+with open(valfile, 'r') as file: 
+    valdata = json.load(file)
+
+for item in valdata:
+    val_texts.append(item['sample'])
+    val_labels.append(item['relation'])
+    val_spans.append(((item["relative_subject_start"], item["relative_subject_end"]),(item["relative_object_start"], item["relative_object_end"])))
+
+
+
 with open(testfile, "r") as file:
     testdata = json.load(file)
 for item in testdata:
@@ -247,22 +276,25 @@ label_to_int = map_labels(train_labels)
 print(label_to_int)
 
 train_labels = [label_to_int[label] for label in train_labels] # all this is doing is turning the labels into their respective int
+val_labels = [label_to_int[label] for label in val_labels] # all this is doing is turning the labels into their respective int
 #tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=True)
 tokenizer = DebertaV2TokenizerFast.from_pretrained("microsoft/deberta-v3-base")
-max_len = get_max_len_sent(tokenizer, train_texts)+50 #just some leeway
+max_len = max(get_max_len_sent(tokenizer, train_texts), get_max_len_sent(tokenizer, val_texts))+50 #some leeway
 train_dataset = TrainDataset(train_texts, train_labels,train_spans, tokenizer = tokenizer,max_len=max_len)
+val_dataset = TrainDataset(val_texts, val_labels, val_spans, tokenizer=tokenizer, max_len=max_len)
 test_dataset = TestDataset(test_texts,test_spans, tokenizer=tokenizer, max_len=max_len)
 
 train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=16, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
 
 # Initialize model
 model = DeBertaModel()
-trainer = Trainer(max_epochs=1, accelerator="gpu", precision="bf16-mixed") #TODO: keep precision, maybe increase GPUs if other two changes don't work out
+trainer = Trainer(max_epochs=1, accelerator="gpu", precision="bf16-mixed", callbacks=[EarlyStopping(monitor="val_loss", mode="min")]) #TODO: keep precision, maybe increase GPUs if other two changes don't work out
 if load_checkpoint:
     model = DeBertaModel.load_from_checkpoint(checkpoint)
-    trainer = Trainer()
 else:
-    trainer.fit(model, train_loader)
+    trainer.fit(model, train_loader, val_loader)
+trainer = Trainer(gpus=1)
 predictions = trainer.predict(model, test_loader)
 print(predictions)
