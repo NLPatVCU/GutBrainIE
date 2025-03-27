@@ -10,7 +10,8 @@ import json
 import sys
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.loggers import WandbLogger
-
+import numpy as np
+from sklearn.utils.class_weight import compute_class_weight
 wandb_logger = WandbLogger(project="GutBrainIE", name="one_epoch_test", log_model="all")
 #Push to Binary RE Branch
 
@@ -19,12 +20,14 @@ wandb_logger = WandbLogger(project="GutBrainIE", name="one_epoch_test", log_mode
 class DeBertaModel(L.LightningModule): #added inheritance to lightning module here
 
         #Model Definition
-        def __init__(self):
+        def __init__(self, class_weights, lr=5e-5):
 
             super().__init__()
 
             self.model = AutoModel.from_pretrained("microsoft/deberta-v3-base")
             self.linear = nn.Linear(768*2, 18)
+            self.lr = lr
+            self.class_weights = class_weights
             self.save_hyperparameters()
         
         def forward(self, input_ids, attention_mask, entity_mask):
@@ -55,7 +58,8 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             entity_mask = batch["entity_mask"]
             labels = batch['labels']
             preds = self(input_ids, attention_mask, entity_mask)
-            loss = F.cross_entropy(preds, labels) 
+            class_weights = self.class_weights.to(preds.device)
+            loss = F.cross_entropy(preds, labels, weight=class_weights) 
             self.log('train_loss', loss)
             return loss
         def validation_step(self, batch, batch_idx):
@@ -78,7 +82,7 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
         #Optimizers
         def configure_optimizers(self):
 
-            return torch.optim.AdamW(self.parameters(), lr=5e-5)
+            return torch.optim.AdamW(self.parameters(), lr=self.lr)
 
 
 #Data Preperation Class
@@ -283,7 +287,9 @@ label_to_int, dist = map_labels(train_labels)
 print(label_to_int)
 print(dist)
 
+
 train_labels = [label_to_int[label] for label in train_labels] # all this is doing is turning the labels into their respective int
+class_weights = torch.tensor(compute_class_weight(class_weight="balanced", classes=np.unique(train_labels), y=train_labels), dtype=torch.float)
 val_labels = [label_to_int[label] for label in val_labels] # all this is doing is turning the labels into their respective int
 #tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=True)
 tokenizer = DebertaV2TokenizerFast.from_pretrained("microsoft/deberta-v3-base")
@@ -297,7 +303,7 @@ val_loader = DataLoader(val_dataset, batch_size=16, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
 
 # Initialize model
-model = DeBertaModel()
+model = DeBertaModel(class_weights=class_weights)
 trainer = Trainer(max_epochs=1, accelerator="gpu", precision="bf16-mixed", logger=wandb_logger, callbacks=[EarlyStopping(monitor="val_loss", mode="min")]) #TODO: keep precision, maybe increase GPUs if other two changes don't work out
 if load_checkpoint:
     model = DeBertaModel.load_from_checkpoint(checkpoint)
