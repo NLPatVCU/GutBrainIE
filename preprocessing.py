@@ -265,14 +265,16 @@ def downsample_none(data, fraction=.5): #might want to make this generalized lat
     for relation in data:
         if relation["relation"]!="NONE":
             new_data.append(relation)
-        else:
             tot_rel+=1
+        else:
             potential_relation=valid_relations[relation["subject_label"], relation["object_label"]] #need to fix
             relations[potential_relation].append(relation)
     for relation in relations:
         random.shuffle(relations[relation])
     dist_num = {key:int(dist_frac[key]*tot_rel) for key in dist_frac}
     sample_no_rel = [relations[key][:dist_num[key]] for key in dist_num]
+    counter = 0
+
     for sample in sample_no_rel:
         if sample!=[]:
             new_data.extend(sample)

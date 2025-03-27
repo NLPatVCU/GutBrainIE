@@ -1,3 +1,4 @@
+import pickle
 import lightning as L
 import torch
 from transformers import DebertaV2Tokenizer, AutoModel, DebertaV2TokenizerFast
@@ -8,7 +9,9 @@ import torch.nn as nn
 import json
 import sys
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
+from lightning.pytorch.loggers import WandbLogger
 
+wandb_logger = WandbLogger(project="GutBrainIE", name="one_epoch_test", log_model="all")
 #Push to Binary RE Branch
 
 
@@ -22,7 +25,8 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
 
             self.model = AutoModel.from_pretrained("microsoft/deberta-v3-base")
             self.linear = nn.Linear(768*2, 18)
-
+            self.save_hyperparameters()
+        
         def forward(self, input_ids, attention_mask, entity_mask):
             result = self.model(input_ids, attention_mask=attention_mask).last_hidden_state  # Shape: (batch_size, seq_len, 768)
 
@@ -215,7 +219,10 @@ def map_labels(labels): #map labels to ints (model works with numbers, not strin
         if label not in label_to_int:
             label_to_int[label] = counter
             counter+=1
-    return label_to_int
+    dist = {label_to_int[x]:0 for x in label_to_int}
+    for label in labels:
+        dist[label_to_int[label]]+=1
+    return label_to_int, dist
 def get_max_len_sent(tokenizer, sents):
     tok_sents = tokenizer(sents, truncation=False)  # Tokenize sentences
     max_len = 0
@@ -271,9 +278,10 @@ with open(testfile, "r") as file:
 for item in testdata:
     test_texts.append(item["sample"])
     test_spans.append(((item["relative_subject_start"], item["relative_subject_end"]),(item["relative_object_start"], item["relative_object_end"])))
-label_to_int = map_labels(train_labels)
+label_to_int, dist = map_labels(train_labels)
 
 print(label_to_int)
+print(dist)
 
 train_labels = [label_to_int[label] for label in train_labels] # all this is doing is turning the labels into their respective int
 val_labels = [label_to_int[label] for label in val_labels] # all this is doing is turning the labels into their respective int
@@ -290,11 +298,13 @@ test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
 
 # Initialize model
 model = DeBertaModel()
-trainer = Trainer(max_epochs=1, accelerator="gpu", precision="bf16-mixed", callbacks=[EarlyStopping(monitor="val_loss", mode="min")]) #TODO: keep precision, maybe increase GPUs if other two changes don't work out
+trainer = Trainer(max_epochs=1, accelerator="gpu", precision="bf16-mixed", logger=wandb_logger, callbacks=[EarlyStopping(monitor="val_loss", mode="min")]) #TODO: keep precision, maybe increase GPUs if other two changes don't work out
 if load_checkpoint:
     model = DeBertaModel.load_from_checkpoint(checkpoint)
 else:
     trainer.fit(model, train_loader, val_loader)
-trainer = Trainer(gpus=1)
+trainer = Trainer()
 predictions = trainer.predict(model, test_loader)
 print(predictions)
+with open("predictions.pkl", "wb") as file:
+    pickle.dump(predictions, file)
