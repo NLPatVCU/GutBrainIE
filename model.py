@@ -282,11 +282,9 @@ with open(testfile, "r") as file:
 for item in testdata:
     test_texts.append(item["sample"])
     test_spans.append(((item["relative_subject_start"], item["relative_subject_end"]),(item["relative_object_start"], item["relative_object_end"])))
-label_to_int, dist = map_labels(train_labels)
+#label_to_int, dist = map_labels(train_labels)
 
-print(label_to_int)
-print(dist)
-
+label_to_int = {'NONE': 0, 'impact': 1, 'influence': 2, 'interact': 3, 'located in': 4, 'change expression': 5, 'target': 6, 'part of': 7, 'used by': 8, 'change abundance': 9, 'is linked to': 10, 'strike': 11, 'affect': 12, 'change effect': 13, 'produced by': 14, 'administered': 15, 'is a': 16, 'compared to': 17}
 
 train_labels = [label_to_int[label] for label in train_labels] # all this is doing is turning the labels into their respective int
 class_weights = torch.tensor(compute_class_weight(class_weight="balanced", classes=np.unique(train_labels), y=train_labels), dtype=torch.float)
@@ -304,7 +302,7 @@ test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
 
 # Initialize model
 model = DeBertaModel(class_weights=class_weights)
-trainer = Trainer(max_epochs=1, accelerator="gpu", precision="bf16-mixed", logger=wandb_logger, callbacks=[EarlyStopping(monitor="val_loss", mode="min")]) #TODO: keep precision, maybe increase GPUs if other two changes don't work out
+trainer = Trainer(max_epochs=100, accelerator="gpu", precision="bf16-mixed", logger=wandb_logger, callbacks=[EarlyStopping(monitor="val_loss", mode="min")]) #TODO: keep precision, maybe increase GPUs if other two changes don't work out
 if load_checkpoint:
     model = DeBertaModel.load_from_checkpoint(checkpoint)
 else:
