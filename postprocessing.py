@@ -36,7 +36,3 @@ with open("ternary_tag_based_relations.json", "w") as f:
     json.dump(ternary_tag_based_relations, f, indent=4)
 with open("ternary_mention_based_relations.json", "w") as f:
     json.dump(ternary_mention_based_relations, f, indent=4)
-
-with open("../GutBrainIE_Full_Collection_2025/Annotations/Dev/json_format/dev.json", "r") as f:
-    data = json.load(f)
-
