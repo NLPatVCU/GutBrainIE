@@ -6,6 +6,7 @@ from lightning.pytorch import Trainer
 import torch.nn.functional as F
 import torch.nn as nn
 import json
+import sys
 
 #Push to Binary RE Branch
 
@@ -145,6 +146,6 @@ model = DeBertaModel()
 
 # Train model
 
-trainer = Trainer(max_epochs=3, precision="bf16-mixed") #TODO: keep precision, maybe increase GPUs if other two changes don't work out
+trainer = Trainer(max_epochs=3 ,accelerator="gpu", devices=2, precision="bf16-mixed", strategy= "deepspeed_stage_2" ) 
 
 trainer.fit(model, train_loader)
