@@ -25,7 +25,7 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             super().__init__()
 
             self.model = AutoModel.from_pretrained("microsoft/deberta-v3-base")
-            self.linear = nn.Linear(768*2, 18)
+            self.linear = nn.Linear(768, 18)
             self.lr = lr
             self.class_weights = class_weights
             self.save_hyperparameters()
@@ -34,17 +34,12 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             result = self.model(input_ids, attention_mask=attention_mask).last_hidden_state  # Shape: (batch_size, seq_len, 768)
 
             entity1_mask = (entity_mask == 1).unsqueeze(-1)  # Shape: (batch_size, seq_len, 1)
-            entity2_mask = (entity_mask == 2).unsqueeze(-1)  # Shape: (batch_size, seq_len, 1)
 
             entity_1 = result * entity1_mask  # Shape: (batch_size, seq_len, 768)
-            entity_2 = result * entity2_mask  # Shape: (batch_size, seq_len, 768)
 
             entity_1 = entity_1.sum(dim=1) / entity1_mask.sum(dim=1)#.clamp(min=1)  # Shape: (batch_size, 768)
-            entity_2 = entity_2.sum(dim=1) / entity2_mask.sum(dim=1)#.clamp(min=1)  # Shape: (batch_size, 768)
 
-            result = torch.cat((entity_1, entity_2), dim=-1)  # Shape: (batch_size, 768 * 2)
-
-            result = self.linear(result)  # Shape: (batch_size, 18)
+            result = self.linear(entity_1)  # Shape: (batch_size, 18)
     
             return result
           
@@ -137,11 +132,8 @@ class TrainDataset(Dataset):
         object_start_token = encoding.char_to_token(self.spans[idx][1][0])
         object_end_token = encoding.char_to_token(self.spans[idx][1][1]+1)
         entity_mask = [0 for x in encoding['input_ids'].flatten()]
-        for i in range(subject_start_token, subject_end_token):
+        for i in range(subject_start_token, object_end_token):
             entity_mask[i] = 1
-        for i in range(object_start_token, object_end_token):
-            entity_mask[i]=2
-        test_ids = [encoding["input_ids"].flatten()[i] for i in range(len(entity_mask)) if entity_mask[i]==1 or entity_mask[i]==2]
 
         return {
 
@@ -200,10 +192,8 @@ class TestDataset(Dataset):
         object_start_token = encoding.char_to_token(self.spans[idx][1][0])
         object_end_token = encoding.char_to_token(self.spans[idx][1][1]+1)
         entity_mask = [0 for x in encoding['input_ids'].flatten()]
-        for i in range(subject_start_token, subject_end_token):
+        for i in range(subject_start_token, object_end_token):
             entity_mask[i] = 1
-        for i in range(object_start_token, object_end_token):
-            entity_mask[i]=2
 
         return {
 
