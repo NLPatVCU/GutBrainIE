@@ -12,6 +12,9 @@ from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.loggers import WandbLogger
 import numpy as np
 from sklearn.utils.class_weight import compute_class_weight
+import torchmetrics
+import matplotlib.pyplot as plt
+# import wandb
 wandb_logger = WandbLogger(project="GutBrainIE", name="one_epoch_test", log_model="all")
 #Push to Binary RE Branch
 
@@ -20,7 +23,7 @@ wandb_logger = WandbLogger(project="GutBrainIE", name="one_epoch_test", log_mode
 class DeBertaModel(L.LightningModule): #added inheritance to lightning module here
 
         #Model Definition
-        def __init__(self, class_weights, lr=5e-5):
+        def __init__(self, class_weights, lr=5e-5,num_labels=18):
 
             super().__init__()
 
@@ -29,6 +32,20 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             self.lr = lr
             self.class_weights = class_weights
             self.save_hyperparameters()
+            # Metrics for validation
+            self.val_f1 = torchmetrics.F1Score(num_classes=num_labels, task="multiclass", average=None)
+            self.val_f1_micro = torchmetrics.F1Score(num_classes=num_labels, task="multiclass", average='micro')
+            self.val_precision = torchmetrics.Precision(num_classes=num_labels, task="multiclass", average=None)
+            self.val_recall = torchmetrics.Recall(num_classes=num_labels, task="multiclass", average=None)
+            self.val_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes=num_labels, task="multiclass", normalize='true')
+
+            # Metrics for testing
+            self.test_f1 = torchmetrics.F1Score(num_classes=num_labels, task="multiclass", average=None)
+            self.test_f1_micro = torchmetrics.F1Score(num_classes=num_labels, task="multiclass", average='micro')
+            self.test_precision = torchmetrics.Precision(num_classes=num_labels, task="multiclass", average=None)
+            self.test_recall = torchmetrics.Recall(num_classes=num_labels, task="multiclass", average=None)
+            self.test_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes=num_labels, task="multiclass", normalize='true')
+
         
         def forward(self, input_ids, attention_mask, entity_mask):
             result = self.model(input_ids, attention_mask=attention_mask).last_hidden_state  # Shape: (batch_size, seq_len, 768)
@@ -64,6 +81,7 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             return loss
         def validation_step(self, batch, batch_idx):
             # this is the validation loop
+            print(f"Validation step {batch_idx} started")
             input_ids = batch['input_ids']
 
             attention_mask = batch['attention_mask']
@@ -73,7 +91,51 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             preds = self(input_ids, attention_mask, entity_mask)
             val_loss = F.cross_entropy(preds, labels) 
 
+            # Log to check if the loss is calculated
+            print(f"Validation loss for batch {batch_idx}: {val_loss.item()}")
+
+            # Convert predictions and labels to the correct format for metric calculations
+            preds_class = preds.argmax(dim=1)  # Get the predicted class indices
+
+            # Update and log F1 score, precision, recall, and confusion matrix for validation
+            self.val_f1.update(preds_class, labels)
+            self.val_f1_micro.update(preds_class, labels)
+            self.val_precision.update(preds_class, labels)
+            self.val_recall.update(preds_class, labels)
+            self.val_confusion_matrix.update(preds_class, labels)
             self.log("val_loss", val_loss)
+            return val_loss
+
+        def on_validation_epoch_end(self):
+            # Compute all metrics
+            f1_per_class = self.val_f1.compute()
+            precision_vals = self.val_precision.compute()
+            recall_vals = self.val_recall.compute()
+            f1_micro = self.val_f1_micro.compute()
+
+            # Log overall metrics
+            self.log('val_avg_f1', f1_per_class.mean(), on_epoch=True, prog_bar=True, sync_dist=True)
+            self.log('val_f1_micro', f1_micro, on_epoch=True, prog_bar=True, sync_dist=True)
+
+            # Log per-class metrics
+            for i, (f1, prec, rec) in enumerate(zip(f1_per_class, precision_vals, recall_vals)):
+                self.log(f'val_f1_class_{i}', f1, on_epoch=True, prog_bar=False, sync_dist=True)
+                self.log(f'val_precision_class_{i}', prec, on_epoch=True, prog_bar=False, sync_dist=True)
+                self.log(f'val_recall_class_{i}', rec, on_epoch=True, prog_bar=False, sync_dist=True)
+
+            # Log confusion matrix
+            fig, ax = self.val_confusion_matrix.plot(add_text=False)
+            # wandb.log({'val_confusion_matrix': [wandb.Image(fig)]})
+            plt.close(fig)
+
+            # Reset metrics
+            self.val_f1.reset()
+            self.val_f1_micro.reset()
+            self.val_precision.reset()
+            self.val_recall.reset()
+            self.val_confusion_matrix.reset()
+
+
         def predict_step(self, batch , batch_idx, dataloader_idx=0):
             preds =  self(batch["input_ids"], batch["attention_mask"], batch["entity_mask"])
             preds = torch.argmax(preds, dim=1)
