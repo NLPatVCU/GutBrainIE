@@ -8,66 +8,66 @@ from sklearn.model_selection import StratifiedShuffleSplit
 random.seed(42)
 #valid relations in the format of (subject_type, object_type, predicate from the table )
 valid_relations = { #made this into an actual dictionary
-    ("anatomical location", "human"): "Located in",
-    ("anatomical location", "animal"): "Located in",
-("bacteria", "bacteria"): "Interact",
-    ("bacteria", "chemical"): "Interact",
-    ("bacteria", "drug"): "Interact",
-    ("bacteria", "DDF"): "Influence",
-    ("bacteria", "gene"): "Change expression",
-    ("bacteria", "human" ):"Located in",
-    ("bacteria", "animal" ):"Located in",
-    ("bacteria", "microbiome" ):"Part of",
-    ("chemical", "anatomical location" ):"Located in",
-    ("chemical", "human" ):"Located in",
-    ("chemical", "animal" ):"Located in",
-    ("chemical", "chemical"):"Interact",
-    ("chemical", "microbiome" ):"Impact",
-    ("chemical", "microbiome" ):"Produced by",
-    ("chemical", "bacteria" ):"Impact",
-    ("dietary supplement" ,"Bacteria"): "Impact",
-    ("drug", "bacteria" ):"Impact",
-    ("food", "bacteria" ):"Impact",
-    ("chemical", "microbiome" ):"Impact",
-    ("dietary supplement", "microbiome"): "Impact",
-    ("drug", "microbiome" ):"Impact",
-    ("food", "microbiome" ):"Impact",
-    ("chemical", "DDF" ):"Influence",
-    ("dietary supplement", "DDF" ):"Influence",
-    ("drug", "DDF" ):"Influence",
-    ("food", "DDF" ):"Influence",
-    ("chemical", "gene" ):"Change expression",
-    ("dietary supplement", "gene" ):"Change expression",
-    ("drug", "gene" ):"Change expression",
-    ("food", "gene" ):"Change expression",
-    ("chemical", "human" ):"Administered",
-    ("dietary supplement", "human" ):"Administered",
-    ("drug", "human" ):"Administered",
-    ("food", "human" ):"Administered",
-    ("chemical", "animal" ):"Administered",
-    ("dietary supplement", "animal" ):"Administered",
-    ("drug", "animal" ):"Administered",
-    ("food", "animal" ):"Administered",
-    ("DDF", "anatomical location" ):"Strike",
-    ("DDF", "bacteria" ):"Change abundance",
-    ("DDF", "microbiome" ):"Change abundance",
-    ("DDF", "chemical" ):"Interact",
-    ("DDF", "DDF" ):"Affect",
-    ("DDF", "DDF" ):"Is a",
-    ("DDF", "human" ):"Target",
-    ("DDF", "animal" ):"Target",
-    ("drug", "chemical" ):"Interact",
-    ("drug", "chemical" ):"Interact",
-    ("drug", "DDF" ):"Change effect",
-    ("human", "biomedical technique" ):"Used by",
-    ("animal", "biomedical technique" ):"Used by",
-    ("microbiome", "biomedical technique" ):"Used by",
-    ("microbiome", "anatomical location" ):"Located in",
-    ("microbiome", "human" ):"Located in",
-    ("microbiome", "animal" ):"Located in",
-    ("microbiome", "gene" ):"Change expression",
-    ("microbiome", "DDF" ):"Is linked to",
-    ("microbiome", "microbiome" ):"Compared to"
+    ("anatomical location", "human"): "located in",
+    ("anatomical location", "animal"): "located in",
+("bacteria", "bacteria"): "interact",
+    ("bacteria", "chemical"): "interact",
+    ("bacteria", "drug"): "interact",
+    ("bacteria", "DDF"): "influence",
+    ("bacteria", "gene"): "change expression",
+    ("bacteria", "human" ):"located in",
+    ("bacteria", "animal" ):"located in",
+    ("bacteria", "microbiome" ):"part of",
+    ("chemical", "anatomical location" ):"located in",
+    ("chemical", "human" ):"located in",
+    ("chemical", "animal" ):"located in",
+    ("chemical", "chemical"):"interact",
+    ("chemical", "microbiome" ):"impact",
+    ("chemical", "microbiome" ):"produced by",
+    ("chemical", "bacteria" ):"impact",
+    ("dietary supplement" ,"bacteria"): "impact",
+    ("drug", "bacteria" ):"impact",
+    ("food", "bacteria" ):"impact",
+    ("chemical", "microbiome" ):"impact",
+    ("dietary supplement", "microbiome"): "impact",
+    ("drug", "microbiome" ):"impact",
+    ("food", "microbiome" ):"impact",
+    ("chemical", "DDF" ):"influence",
+    ("dietary supplement", "DDF" ):"influence",
+    ("drug", "DDF" ):"influence",
+    ("food", "DDF" ):"influence",
+    ("chemical", "gene" ):"change expression",
+    ("dietary supplement", "gene" ):"change expression",
+    ("drug", "gene" ):"change expression",
+    ("food", "gene" ):"change expression",
+    ("chemical", "human" ):"administered",
+    ("dietary supplement", "human" ):"administered",
+    ("drug", "human" ):"administered",
+    ("food", "human" ):"administered",
+    ("chemical", "animal" ):"administered",
+    ("dietary supplement", "animal" ):"administered",
+    ("drug", "animal" ):"administered",
+    ("food", "animal" ):"administered",
+    ("DDF", "anatomical location" ):"strike",
+    ("DDF", "bacteria" ):"change abundance",
+    ("DDF", "microbiome" ):"change abundance",
+    ("DDF", "chemical" ):"interact",
+    ("DDF", "DDF" ):"affect",
+    ("DDF", "DDF" ):"is a",
+    ("DDF", "human" ):"target",
+    ("DDF", "animal" ):"target",
+    ("drug", "chemical" ):"interact",
+    ("drug", "chemical" ):"interact",
+    ("drug", "DDF" ):"change effect",
+    ("human", "biomedical technique" ):"used by",
+    ("animal", "biomedical technique" ):"used by",
+    ("microbiome", "biomedical technique" ):"used by",
+    ("microbiome", "anatomical location" ):"located in",
+    ("microbiome", "human" ):"located in",
+    ("microbiome", "animal" ):"located in",
+    ("microbiome", "gene" ):"change expression",
+    ("microbiome", "DDF" ):"is linked to",
+    ("microbiome", "microbiome" ):"compared to"
 }
 
 def preprocess_train_data(data):
@@ -241,43 +241,50 @@ def preprocess_train_data(data):
 def downsample_none(data, fraction=.5): #might want to make this generalized later, but who cares
     tot_rel = 0
     #first we need to figure out how much in total
-    dist_frac = {"Target": .152,
-            "Influence":.146,
-            "Located in":.137,
-            "Is linked to":.137,
-            "Affect":.121,
-            "Impact":.059,
-            "Used by":0.052,
-            "Interact":0.039,
-            "Change abundance":.035,
-            "Part of":.029,
-            "Is a": 0.025,
-            "Change effect":.024,
-            "Administered":.014,
-            "Change expression":.012,
-            "Strike":0.011,
-            "Produced by":0.005,
-            "Compared to":0.003
+    dist_frac = {"target": .152,
+            "influence":.146,
+            "located in":.137,
+            "is linked to":.137,
+            "affect":.121,
+            "impact":.059,
+            "used by":0.052,
+            "interact":0.039,
+            "change abundance":.035,
+            "part of":.029,
+            "is a": 0.025,
+            "change effect":.024,
+            "administered":.014,
+            "change expression":.012,
+            "strike":0.011,
+            "produced by":0.005,
+            "compared to":0.003
     }
+    dist_count = {x:0 for x in dist_frac}
 
     relations = {key:[] for key in dist_frac}
     new_data = []
     for relation in data:
         if relation["relation"]!="NONE":
             new_data.append(relation)
+            dist_count[relation["relation"]]+=1
             tot_rel+=1
         else:
             potential_relation=valid_relations[relation["subject_label"], relation["object_label"]] #need to fix
             relations[potential_relation].append(relation)
     for relation in relations:
         random.shuffle(relations[relation])
-    dist_num = {key:int(dist_frac[key]*tot_rel) for key in dist_frac}
-    sample_no_rel = [relations[key][:dist_num[key]] for key in dist_num]
+    sample_no_rel = [relations[key][:dist_count[key]] for key in dist_count]
     counter = 0
 
     for sample in sample_no_rel:
         if sample!=[]:
             new_data.extend(sample)
+    dist_count_out = {x:0 for x in dist_frac}
+    dist_count_out["NONE"] = 0
+    for thing in new_data:
+        dist_count_out[thing["relation"]]+=1
+    print(dist_count_out)
+
     return new_data
 
 
