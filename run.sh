@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=DebertaRE
-#SBATCH --gres=gpu:80g:1
+#SBATCH --gres=gpu:1 
+#SBATCH --partition=gpu
 #SBATCH --cpus-per-task=6
-#SBATCH --output=output.log
-#SBATCH --qos=short
+#SBATCH --output=output3.log
 #SBATCH --time=14-00:00
 #SBATCH --mem=100G
 

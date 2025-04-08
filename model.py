@@ -12,7 +12,6 @@ from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.loggers import WandbLogger
 import numpy as np
 from sklearn.utils.class_weight import compute_class_weight
-import torcheval.metrics
 import torchmetrics
 import matplotlib.pyplot as plt
 # import wandb
@@ -33,19 +32,13 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             self.lr = lr
             self.class_weights = class_weights
             self.save_hyperparameters()
-            self.perClassF1 = torcheval.metrics.MulticlassF1Score(num_classes = 18, average=None)
-            self.perClassPrecision = torcheval.metrics.MulticlassPrecision(num_classes=18, average=None)
-            self.perClassRecall = torcheval.metrics.MulticlassRecall(num_classes=18, average=None)
             # Metrics for validation
+            self.val_f1 = torchmetrics.F1Score(num_classes=num_labels, task="multiclass", average=None)
             self.val_f1_micro = torchmetrics.F1Score(num_classes=num_labels, task="multiclass", average='micro')
-            self.val_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes=num_labels, task="multiclass", normalize='true')
-
-            # Metrics for testing
-            self.test_f1 = torchmetrics.F1Score(num_classes=num_labels, task="multiclass", average=None)
-            self.test_f1_micro = torchmetrics.F1Score(num_classes=num_labels, task="multiclass", average='micro')
-            self.test_perClassF1 = torcheval.metrics.MulticlassF1Score(num_classes = 18, average=None)
-            self.test_perClassRecall = torcheval.metrics.MulticlassRecall(num_classes = 18, average=None)
-            self.test_perClassPrecision = torcheval.metrics.MulticlassPrecision(num_classes = 18, average=None)
+            self.val_precision = torchmetrics.Precision(num_classes=num_labels, task="multiclass", average=None)
+            self.val_recall = torchmetrics.Recall(num_classes=num_labels, task="multiclass", average=None)
+            self.test_precision = torchmetrics.Precision(num_classes=num_labels, task="multiclass", average=None)
+            self.test_recall = torchmetrics.Recall(num_classes=num_labels, task="multiclass", average=None)
             self.test_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes=num_labels, task="multiclass", normalize='true')
 
         
@@ -95,42 +88,37 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             logits = self(input_ids, attention_mask, entity_mask)
             preds = torch.argmax(logits, dim=-1)
 
-            self.perClassF1.update(preds, labels)
-            self.perClassRecall.update(preds, labels)
-            self.perClassPrecision.update(preds, labels)
-            print(labels)
             # Log to check if the loss is calculated
             print(f"Validation loss for batch {batch_idx}: {val_loss.item()}")
 
             # Convert predictions and labels to the correct format for metric calculations
+            preds_class = preds.argmax(dim=1)  # Get the predicted class indices
 
             # Update and log F1 score, precision, recall, and confusion matrix for validation
-            self.val_f1_micro.update(preds, labels)
-            self.val_confusion_matrix.update(preds, labels)
+            self.val_f1.update(preds_class, labels)
+            self.val_f1_micro.update(preds_class, labels)
+            self.val_precision.update(preds_class, labels)
+            self.val_recall.update(preds_class, labels)
+            self.val_confusion_matrix.update(preds_class, labels)
             self.log("val_loss", val_loss)
+            return val_loss
 
         def on_validation_epoch_end(self):
-
-        # Compute per-class F1 at the end of epoch
-
-            f1_per_class = self.perClassF1.compute()
-            precision_per_class = self.perClassPrecision.compute()
-            recall_per_class = self.perClassRecall.compute()
-            for i in range(len(f1_per_class)):
-                self.log(f'val_f1_score_{i}',f1_per_class[i],on_epoch=True, prog_bar=False, logger=True, sync_dist=True)
-            for i in range(len(precision_per_class)):
-                self.log(f'val_f1_score_{i}',precision_per_class[i],on_epoch=True, prog_bar=False, logger=True, sync_dist=True)
-            for i in range(len(recall_per_class)):
-                self.log(f'val_f1_score_{i}',recall_per_class[i],on_epoch=True, prog_bar=False, logger=True, sync_dist=True)
-
-
             # Compute all metrics
+            f1_per_class = self.val_f1.compute()
+            precision_vals = self.val_precision.compute()
+            recall_vals = self.val_recall.compute()
             f1_micro = self.val_f1_micro.compute()
 
             # Log overall metrics
             self.log('val_avg_f1', f1_per_class.mean(), on_epoch=True, prog_bar=True, sync_dist=True)
             self.log('val_f1_micro', f1_micro, on_epoch=True, prog_bar=True, sync_dist=True)
 
+            # Log per-class metrics
+            for i, (f1, prec, rec) in enumerate(zip(f1_per_class, precision_vals, recall_vals)):
+                self.log(f'val_f1_class_{i}', f1, on_epoch=True, prog_bar=False, sync_dist=True)
+                self.log(f'val_precision_class_{i}', prec, on_epoch=True, prog_bar=False, sync_dist=True)
+                self.log(f'val_recall_class_{i}', rec, on_epoch=True, prog_bar=False, sync_dist=True)
 
             # Log confusion matrix
             fig, ax = self.val_confusion_matrix.plot(add_text=False)
@@ -138,11 +126,12 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             plt.close(fig)
 
             # Reset metrics
+            self.val_f1.reset()
             self.val_f1_micro.reset()
+            self.val_precision.reset()
+            self.val_recall.reset()
             self.val_confusion_matrix.reset()
-            self.perClassF1.reset()
-            self.perClassRecall.reset()
-            self.perClassPrecision.reset()
+
 
         def predict_step(self, batch , batch_idx, dataloader_idx=0):
             preds =  self(batch["input_ids"], batch["attention_mask"], batch["entity_mask"])
