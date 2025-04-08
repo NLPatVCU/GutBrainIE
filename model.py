@@ -12,6 +12,7 @@ from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.loggers import WandbLogger
 import numpy as np
 from sklearn.utils.class_weight import compute_class_weight
+import torcheval.metrics
 wandb_logger = WandbLogger(project="GutBrainIE", name="one_epoch_test", log_model="all")
 #Push to Binary RE Branch
 
@@ -29,7 +30,8 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             self.lr = lr
             self.class_weights = class_weights
             self.save_hyperparameters()
-        
+            self.perClassF1 = torcheval.metrics.MulticlassF1Score(num_classes = 18, average=None)
+
         def forward(self, input_ids, attention_mask, entity_mask):
             result = self.model(input_ids, attention_mask=attention_mask).last_hidden_state  # Shape: (batch_size, seq_len, 768)
 
@@ -67,8 +69,24 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             labels = batch['labels']
             preds = self(input_ids, attention_mask, entity_mask)
             val_loss = F.cross_entropy(preds, labels) 
+            logits = self(input_ids, attention_mask, entity_mask)
+            preds = torch.argmax(logits, dim=-1)
+            self.perClassF1.update(preds, labels)
 
             self.log("val_loss", val_loss)
+
+        def on_validation_epoch_end(self):
+
+        # Compute per-class F1 at the end of epoch
+
+            f1_per_class = self.perClassF1.compute()
+
+            for i in range(len(f1_per_class)):
+
+                self.log(f'f1_score_{i}',f1_per_class[i],on_epoch=True, prog_bar=False, logger=True, sync_dist=True)
+
+
+    
         def predict_step(self, batch , batch_idx, dataloader_idx=0):
             preds =  self(batch["input_ids"], batch["attention_mask"], batch["entity_mask"])
             preds = torch.argmax(preds, dim=1)
