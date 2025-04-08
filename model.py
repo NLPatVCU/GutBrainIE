@@ -13,7 +13,10 @@ from lightning.pytorch.loggers import WandbLogger
 import numpy as np
 from sklearn.utils.class_weight import compute_class_weight
 import torcheval.metrics
-wandb_logger = WandbLogger(project="GutBrainIE", name="one_epoch_test", log_model="all")
+import torchmetrics
+import matplotlib.pyplot as plt
+# import wandb
+wandb_logger = WandbLogger(project="GutBrainIE", name="char_is_testing", log_model=True)
 #Push to Binary RE Branch
 
 
@@ -21,27 +24,46 @@ wandb_logger = WandbLogger(project="GutBrainIE", name="one_epoch_test", log_mode
 class DeBertaModel(L.LightningModule): #added inheritance to lightning module here
 
         #Model Definition
-        def __init__(self, class_weights, lr=5e-5):
+        def __init__(self, class_weights, lr=5e-5,num_labels=18):
 
             super().__init__()
 
             self.model = AutoModel.from_pretrained("microsoft/deberta-v3-base")
-            self.linear = nn.Linear(768, 18)
+            self.linear = nn.Linear(768*2, 18)
             self.lr = lr
             self.class_weights = class_weights
             self.save_hyperparameters()
             self.perClassF1 = torcheval.metrics.MulticlassF1Score(num_classes = 18, average=None)
+            self.perClassPrecision = torcheval.metrics.MulticlassPrecision(num_classes=18, average=None)
+            self.perClassRecall = torcheval.metrics.MulticlassRecall(num_classes=18, average=None)
+            # Metrics for validation
+            self.val_f1_micro = torchmetrics.F1Score(num_classes=num_labels, task="multiclass", average='micro')
+            self.val_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes=num_labels, task="multiclass", normalize='true')
 
+            # Metrics for testing
+            self.test_f1 = torchmetrics.F1Score(num_classes=num_labels, task="multiclass", average=None)
+            self.test_f1_micro = torchmetrics.F1Score(num_classes=num_labels, task="multiclass", average='micro')
+            self.test_perClassF1 = torcheval.metrics.MulticlassF1Score(num_classes = 18, average=None)
+            self.test_perClassRecall = torcheval.metrics.MulticlassRecall(num_classes = 18, average=None)
+            self.test_perClassPrecision = torcheval.metrics.MulticlassPrecision(num_classes = 18, average=None)
+            self.test_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes=num_labels, task="multiclass", normalize='true')
+
+        
         def forward(self, input_ids, attention_mask, entity_mask):
             result = self.model(input_ids, attention_mask=attention_mask).last_hidden_state  # Shape: (batch_size, seq_len, 768)
 
             entity1_mask = (entity_mask == 1).unsqueeze(-1)  # Shape: (batch_size, seq_len, 1)
+            entity2_mask = (entity_mask == 2).unsqueeze(-1)  # Shape: (batch_size, seq_len, 1)
 
             entity_1 = result * entity1_mask  # Shape: (batch_size, seq_len, 768)
+            entity_2 = result * entity2_mask  # Shape: (batch_size, seq_len, 768)
 
             entity_1 = entity_1.sum(dim=1) / entity1_mask.sum(dim=1)#.clamp(min=1)  # Shape: (batch_size, 768)
+            entity_2 = entity_2.sum(dim=1) / entity2_mask.sum(dim=1)#.clamp(min=1)  # Shape: (batch_size, 768)
 
-            result = self.linear(entity_1)  # Shape: (batch_size, 18)
+            result = torch.cat((entity_1, entity_2), dim=-1)  # Shape: (batch_size, 768 * 2)
+
+            result = self.linear(result)  # Shape: (batch_size, 18)
     
             return result
           
@@ -61,6 +83,7 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             return loss
         def validation_step(self, batch, batch_idx):
             # this is the validation loop
+            print(f"Validation step {batch_idx} started")
             input_ids = batch['input_ids']
 
             attention_mask = batch['attention_mask']
@@ -71,8 +94,18 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             val_loss = F.cross_entropy(preds, labels) 
             logits = self(input_ids, attention_mask, entity_mask)
             preds = torch.argmax(logits, dim=-1)
-            self.perClassF1.update(preds, labels)
 
+            self.perClassF1.update(preds, labels)
+            self.perClassRecall.update(preds, labels)
+            self.perClassPrecision.update(preds, labels)
+            # Log to check if the loss is calculated
+            print(f"Validation loss for batch {batch_idx}: {val_loss.item()}")
+
+            # Convert predictions and labels to the correct format for metric calculations
+
+            # Update and log F1 score, precision, recall, and confusion matrix for validation
+            self.val_f1_micro.update(preds, labels)
+            self.val_confusion_matrix.update(preds, labels)
             self.log("val_loss", val_loss)
 
         def on_validation_epoch_end(self):
@@ -80,13 +113,36 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
         # Compute per-class F1 at the end of epoch
 
             f1_per_class = self.perClassF1.compute()
-
+            precision_per_class = self.perClassPrecision.compute()
+            recall_per_class = self.perClassRecall.compute()
             for i in range(len(f1_per_class)):
+                self.log(f'val_f1_score_{i}',f1_per_class[i],on_epoch=True, prog_bar=False, logger=True, sync_dist=True)
+            for i in range(len(precision_per_class)):
+                self.log(f'val_f1_score_{i}',precision_per_class[i],on_epoch=True, prog_bar=False, logger=True, sync_dist=True)
+            for i in range(len(recall_per_class)):
+                self.log(f'val_f1_score_{i}',recall_per_class[i],on_epoch=True, prog_bar=False, logger=True, sync_dist=True)
 
-                self.log(f'f1_score_{i}',f1_per_class[i],on_epoch=True, prog_bar=False, logger=True, sync_dist=True)
+
+            # Compute all metrics
+            f1_micro = self.val_f1_micro.compute()
+
+            # Log overall metrics
+            self.log('val_avg_f1', f1_per_class.mean(), on_epoch=True, prog_bar=True, sync_dist=True)
+            self.log('val_f1_micro', f1_micro, on_epoch=True, prog_bar=True, sync_dist=True)
 
 
-    
+            # Log confusion matrix
+            fig, ax = self.val_confusion_matrix.plot(add_text=False)
+            # wandb.log({'val_confusion_matrix': [wandb.Image(fig)]})
+            plt.close(fig)
+
+            # Reset metrics
+            self.val_f1_micro.reset()
+            self.val_confusion_matrix.reset()
+            self.perClassF1.reset()
+            self.perClassRecall.reset()
+            self.perClassPrecision.reset()
+
         def predict_step(self, batch , batch_idx, dataloader_idx=0):
             preds =  self(batch["input_ids"], batch["attention_mask"], batch["entity_mask"])
             preds = torch.argmax(preds, dim=1)
@@ -210,8 +266,12 @@ class TestDataset(Dataset):
         object_start_token = encoding.char_to_token(self.spans[idx][1][0])
         object_end_token = encoding.char_to_token(self.spans[idx][1][1]+1)
         entity_mask = [0 for x in encoding['input_ids'].flatten()]
-        for i in range(subject_start_token, object_end_token):
+        """for i in range(subject_start_token, object_end_token):
+            entity_mask[i] = 1"""
+        for i in range(subject_start_token, subject_end_token):
             entity_mask[i] = 1
+        for i in range(object_start_token, object_end_token):
+            entity_mask[i]=2
 
         return {
 
@@ -310,7 +370,7 @@ test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
 
 # Initialize model
 model = DeBertaModel(class_weights=class_weights)
-trainer = Trainer(max_epochs=100, accelerator="gpu", precision="bf16-mixed", logger=wandb_logger, callbacks=[EarlyStopping(monitor="val_loss", mode="min")]) #TODO: keep precision, maybe increase GPUs if other two changes don't work out
+trainer = Trainer(max_epochs=100, accelerator="gpu", precision="bf16-mixed", logger=wandb_logger, callbacks=[EarlyStopping(monitor="val_f1_micro", mode="max")]) #TODO: keep precision, maybe increase GPUs if other two changes don't work out
 if load_checkpoint:
     model = DeBertaModel.load_from_checkpoint(checkpoint)
 else:
