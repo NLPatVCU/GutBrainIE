@@ -98,6 +98,7 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             self.perClassF1.update(preds, labels)
             self.perClassRecall.update(preds, labels)
             self.perClassPrecision.update(preds, labels)
+            print(labels)
             # Log to check if the loss is calculated
             print(f"Validation loss for batch {batch_idx}: {val_loss.item()}")
 
@@ -355,8 +356,11 @@ for item in testdata:
 label_to_int = {'NONE': 0, 'impact': 1, 'influence': 2, 'interact': 3, 'located in': 4, 'change expression': 5, 'target': 6, 'part of': 7, 'used by': 8, 'change abundance': 9, 'is linked to': 10, 'strike': 11, 'affect': 12, 'change effect': 13, 'produced by': 14, 'administered': 15, 'is a': 16, 'compared to': 17}
 
 train_labels = [label_to_int[label] for label in train_labels] # all this is doing is turning the labels into their respective int
-class_weights = torch.tensor(compute_class_weight(class_weight="balanced", classes=np.unique(train_labels), y=train_labels), dtype=torch.float)
+class_weights = compute_class_weight(class_weight="balanced", classes=np.unique(train_labels), y=train_labels)
+class_weights[0]/=100
+class_weights = torch.tensor(class_weights, dtype=torch.float)
 val_labels = [label_to_int[label] for label in val_labels] # all this is doing is turning the labels into their respective int
+print(val_labels)
 #tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=True)
 tokenizer = DebertaV2TokenizerFast.from_pretrained("microsoft/deberta-v3-base")
 max_len = max(get_max_len_sent(tokenizer, train_texts), get_max_len_sent(tokenizer, val_texts))+50 #some leeway
