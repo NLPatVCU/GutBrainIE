@@ -15,7 +15,7 @@ from sklearn.utils.class_weight import compute_class_weight
 import torchmetrics
 import matplotlib.pyplot as plt
 # import wandb
-wandb_logger = WandbLogger(project="GutBrainIE", name="char_is_testing", log_model=True)
+wandb_logger = WandbLogger(project="GutBrainIE", name="one_epoch_test", log_model="all")
 #Push to Binary RE Branch
 
 
@@ -37,6 +37,11 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             self.val_f1_micro = torchmetrics.F1Score(num_classes=num_labels, task="multiclass", average='micro')
             self.val_precision = torchmetrics.Precision(num_classes=num_labels, task="multiclass", average=None)
             self.val_recall = torchmetrics.Recall(num_classes=num_labels, task="multiclass", average=None)
+            self.val_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes=num_labels, task="multiclass", normalize='true')
+
+            # Metrics for testing
+            self.test_f1 = torchmetrics.F1Score(num_classes=num_labels, task="multiclass", average=None)
+            self.test_f1_micro = torchmetrics.F1Score(num_classes=num_labels, task="multiclass", average='micro')
             self.test_precision = torchmetrics.Precision(num_classes=num_labels, task="multiclass", average=None)
             self.test_recall = torchmetrics.Recall(num_classes=num_labels, task="multiclass", average=None)
             self.test_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes=num_labels, task="multiclass", normalize='true')
@@ -85,8 +90,6 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             labels = batch['labels']
             preds = self(input_ids, attention_mask, entity_mask)
             val_loss = F.cross_entropy(preds, labels) 
-            logits = self(input_ids, attention_mask, entity_mask)
-            preds = torch.argmax(logits, dim=-1)
 
             # Log to check if the loss is calculated
             print(f"Validation loss for batch {batch_idx}: {val_loss.item()}")
@@ -196,8 +199,11 @@ class TrainDataset(Dataset):
         object_start_token = encoding.char_to_token(self.spans[idx][1][0])
         object_end_token = encoding.char_to_token(self.spans[idx][1][1]+1)
         entity_mask = [0 for x in encoding['input_ids'].flatten()]
-        for i in range(subject_start_token, object_end_token):
+        for i in range(subject_start_token, subject_end_token):
             entity_mask[i] = 1
+        for i in range(object_start_token, object_end_token):
+            entity_mask[i]=2
+        test_ids = [encoding["input_ids"].flatten()[i] for i in range(len(entity_mask)) if entity_mask[i]==1 or entity_mask[i]==2]
 
         return {
 
@@ -256,8 +262,6 @@ class TestDataset(Dataset):
         object_start_token = encoding.char_to_token(self.spans[idx][1][0])
         object_end_token = encoding.char_to_token(self.spans[idx][1][1]+1)
         entity_mask = [0 for x in encoding['input_ids'].flatten()]
-        """for i in range(subject_start_token, object_end_token):
-            entity_mask[i] = 1"""
         for i in range(subject_start_token, subject_end_token):
             entity_mask[i] = 1
         for i in range(object_start_token, object_end_token):
@@ -345,11 +349,8 @@ for item in testdata:
 label_to_int = {'NONE': 0, 'impact': 1, 'influence': 2, 'interact': 3, 'located in': 4, 'change expression': 5, 'target': 6, 'part of': 7, 'used by': 8, 'change abundance': 9, 'is linked to': 10, 'strike': 11, 'affect': 12, 'change effect': 13, 'produced by': 14, 'administered': 15, 'is a': 16, 'compared to': 17}
 
 train_labels = [label_to_int[label] for label in train_labels] # all this is doing is turning the labels into their respective int
-class_weights = compute_class_weight(class_weight="balanced", classes=np.unique(train_labels), y=train_labels)
-class_weights[0]/=100
-class_weights = torch.tensor(class_weights, dtype=torch.float)
+class_weights = torch.tensor(compute_class_weight(class_weight="balanced", classes=np.unique(train_labels), y=train_labels), dtype=torch.float)
 val_labels = [label_to_int[label] for label in val_labels] # all this is doing is turning the labels into their respective int
-print(val_labels)
 #tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=True)
 tokenizer = DebertaV2TokenizerFast.from_pretrained("microsoft/deberta-v3-base")
 max_len = max(get_max_len_sent(tokenizer, train_texts), get_max_len_sent(tokenizer, val_texts))+50 #some leeway
@@ -363,7 +364,7 @@ test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
 
 # Initialize model
 model = DeBertaModel(class_weights=class_weights)
-trainer = Trainer(max_epochs=100, accelerator="gpu", precision="bf16-mixed", logger=wandb_logger, callbacks=[EarlyStopping(monitor="val_f1_micro", mode="max")]) #TODO: keep precision, maybe increase GPUs if other two changes don't work out
+trainer = Trainer(max_epochs=100, accelerator="gpu", precision="bf16-mixed", logger=wandb_logger, callbacks=[EarlyStopping(monitor="val_loss", mode="min")]) #TODO: keep precision, maybe increase GPUs if other two changes don't work out
 if load_checkpoint:
     model = DeBertaModel.load_from_checkpoint(checkpoint)
 else:
