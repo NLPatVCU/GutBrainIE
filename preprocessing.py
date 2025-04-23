@@ -178,12 +178,18 @@ def preprocess_train_data(data):
                     relative_subject_end = -1
                     relative_object_start = -1
                     relative_object_end = -1
+                    same_sent = None
                     if subject_location == "abstract":
                         for span in abstract_doc.sents:
                             if span.start_char<= subject_start and span.end_char>=subject_end+1:
                                 relative_subject_start = len(sample)+(subject_start-span.start_char)
                                 relative_subject_end = len(sample)+(subject_end-span.start_char)
                                 sample+=span.text
+                            if span.start_char<= object_start and span.end_char>=object_end+1:
+                                same_sent = True
+                            else:
+                                same_sent=False
+                                
                     elif subject_location == "title":
                         for span in title_doc.sents:
                             if span.start_char<=subject_start and span.end_char>=subject_end+1:
@@ -372,10 +378,23 @@ def preprocess_test_data(data):
 
     
 def train_val_split(data):
+    rel_counts = {}
+    for d in data:
+        if d["relation"] not in rel_counts:
+            rel_counts[d["relation"]] = 1
+        else:
+            rel_counts[d["relation"]]+=1
+    filtered_data = []
+    to_add = []
+    for d in data:
+        if rel_counts[d["relation"]]>1:
+            filtered_data.append(d)
+        else:
+            to_add.append(d)
     indices = []
     classes = []
     counter = 0
-    for d in data:
+    for d in filtered_data:
         indices.append(counter)
         counter+=1
         classes.append(d["relation"])
@@ -385,6 +404,7 @@ def train_val_split(data):
     for i, (train_index, test_index) in enumerate(sss.split(indices, classes)):
         train = [data[x] for x in train_index]
         val = [data[x] for x in test_index]
+    train.extend(to_add)
     return train, val
 
 # Save processed data using the 3rd arg 
