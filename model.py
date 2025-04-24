@@ -9,13 +9,14 @@ import torch.nn as nn
 import json
 import sys
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
+from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
 import numpy as np
 from sklearn.utils.class_weight import compute_class_weight
 import torchmetrics
 import matplotlib.pyplot as plt
 # import wandb
-wandb_logger = WandbLogger(project="GutBrainIE", name="fixed_mixed_quality", log_model=True)
+wandb_logger = WandbLogger(project="GutBrainIE", name="mixed_quality_final", log_model=True)
 #Push to Binary RE Branch
 
 
@@ -376,11 +377,21 @@ test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
 
 # Initialize model
 model = DeBertaModel(class_weights=class_weights)
-trainer = Trainer(max_epochs=100, accelerator="gpu", precision="bf16-mixed", logger=wandb_logger, callbacks=[EarlyStopping(monitor="val_f1_micro", mode="max")]) #TODO: keep precision, maybe increase GPUs if other two changes don't work out
+early_stopping = EarlyStopping(monitor="val_f1_micro", mode="max")
+checkpoint_callback = ModelCheckpoint(
+    monitor='val_f1_micro',
+    save_top_k=1,
+    mode='max',             
+    filename='best-checkpoint',
+    save_weights_only=True
+)
+trainer = Trainer(max_epochs=100, accelerator="gpu", precision="bf16-mixed", logger=wandb_logger, callbacks=[checkpoint_callback, early_stopping]) #TODO: keep precision, maybe increase GPUs if other two changes don't work out
 if load_checkpoint:
     model = DeBertaModel.load_from_checkpoint(checkpoint)
 else:
     trainer.fit(model, train_loader, val_loader)
+    checkpoint = checkpoint_callback.best_model_path
+    model = DeBertaModel.load_from_checkpoint(checkpoint)
 trainer = Trainer()
 predictions = trainer.predict(model, test_loader)
 print(predictions)
