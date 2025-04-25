@@ -9,16 +9,15 @@ import torch.nn as nn
 import json
 import sys
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
+from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
 import numpy as np
 from sklearn.utils.class_weight import compute_class_weight
 import torchmetrics
 import matplotlib.pyplot as plt
-import wandb
-wandb_logger = WandbLogger(project="GutBrainIE", name="confusion_matrixx", log_model=True)
-wandb.login(key="6bdcab3c0968a823a321f41b5808c3fabec2786c")
-#Push to Binary RE Branch
 
+import wandb
+wandb_logger = WandbLogger(project="GutBrainIE", name="mixed_quality_final", log_model=True)
 
 #Deberta Model Class
 class DeBertaModel(L.LightningModule): #added inheritance to lightning module here
@@ -209,16 +208,28 @@ class TrainDataset(Dataset):
 
         )
         subject_start_token = encoding.char_to_token(self.spans[idx][0][0])
-        subject_end_token = encoding.char_to_token(self.spans[idx][0][1]+1)
+        subject_end_token = encoding.char_to_token(self.spans[idx][0][1])
         object_start_token = encoding.char_to_token(self.spans[idx][1][0])
-        object_end_token = encoding.char_to_token(self.spans[idx][1][1]+1)
+        object_end_token = encoding.char_to_token(self.spans[idx][1][1])
         entity_mask = [0 for x in encoding['input_ids'].flatten()]
-        for i in range(subject_start_token, subject_end_token):
-            entity_mask[i] = 1
-        for i in range(object_start_token, object_end_token):
-            entity_mask[i]=2
-        test_ids = [encoding["input_ids"].flatten()[i] for i in range(len(entity_mask)) if entity_mask[i]==1 or entity_mask[i]==2]
-
+        try:
+            for i in range(subject_start_token, subject_end_token+1):
+                entity_mask[i] = 1
+            for i in range(object_start_token, object_end_token+1):
+                entity_mask[i]=2
+        except:
+            print("ERROR OCCURED")
+            print("sentence: "+text)
+            print(f"subject_start_token: {subject_start_token} comes from char index {self.spans[idx][0][0]}")
+            print(f"subject_end_token: {subject_end_token} comes from char index {self.spans[idx][0][1]+1}")
+            print(f"object_start_token: {object_start_token} comes from char index {self.spans[idx][1][0]}")
+            print(f"object_end_token: {object_end_token} comes from char index {self.spans[idx][1][1]+1}")
+            print(len(text))
+            print(text[self.spans[idx][0][0]:self.spans[idx][0][1]+1])
+            print(text[self.spans[idx][1][0]:self.spans[idx][1][1]+1])
+            assert len(text[self.spans[idx][0][0]:self.spans[idx][0][1]+1])==(self.spans[idx][0][1]+1)-(self.spans[idx][0][0])
+            assert len(text[self.spans[idx][1][0]:self.spans[idx][1][1]+1])==(self.spans[idx][1][1]+1)-(self.spans[idx][1][0])
+            exit()
         return {
 
             'input_ids': encoding['input_ids'].flatten(),
@@ -378,11 +389,23 @@ test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
 
 # Initialize model
 model = DeBertaModel(class_weights=class_weights)
-trainer = Trainer(max_epochs=100, accelerator="gpu", precision="bf16-mixed", logger=wandb_logger, callbacks=[EarlyStopping(monitor="val_f1_micro", mode="max")]) #TODO: keep precision, maybe increase GPUs if other two changes don't work out
+
+early_stopping = EarlyStopping(monitor="val_f1_micro", mode="max")
+checkpoint_callback = ModelCheckpoint(
+    monitor='val_f1_micro',
+    save_top_k=1,
+    mode='max',             
+    filename='best-checkpoint',
+    save_weights_only=True
+)
+trainer = Trainer(max_epochs=100, accelerator="gpu", precision="bf16-mixed", logger=wandb_logger, callbacks=[checkpoint_callback, early_stopping]) #TODO: keep precision, maybe increase GPUs if other two changes don't work out
+
 if load_checkpoint:
     model = DeBertaModel.load_from_checkpoint(checkpoint)
 else:    
     trainer.fit(model, train_loader, val_loader)
+    checkpoint = checkpoint_callback.best_model_path
+    model = DeBertaModel.load_from_checkpoint(checkpoint)
 trainer = Trainer()
 predictions = trainer.predict(model, test_loader)
 print(predictions)
