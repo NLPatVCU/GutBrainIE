@@ -15,10 +15,9 @@ import numpy as np
 from sklearn.utils.class_weight import compute_class_weight
 import torchmetrics
 import matplotlib.pyplot as plt
-# import wandb
-wandb_logger = WandbLogger(project="GutBrainIE", name="mixed_quality_final", log_model=True)
-#Push to Binary RE Branch
 
+import wandb
+wandb_logger = WandbLogger(project="GutBrainIE", name="mixed_quality_final", log_model=True)
 
 #Deberta Model Class
 class DeBertaModel(L.LightningModule): #added inheritance to lightning module here
@@ -104,6 +103,7 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             self.val_precision.update(preds_class, labels)
             self.val_recall.update(preds_class, labels)
             self.val_confusion_matrix.update(preds_class, labels)
+
             self.log("val_loss", val_loss)
             return val_loss
 
@@ -125,14 +125,26 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
                 self.log(f'val_recall_class_{i}', rec, on_epoch=True, prog_bar=False, sync_dist=True)
 
             # Log confusion matrix
-            fig, ax = self.val_confusion_matrix.plot(add_text=False)
+            # fig, ax = self.val_confusion_matrix.plot(add_text=True)
             # wandb.log({'val_confusion_matrix': [wandb.Image(fig)]})
+            # plt.close(fig)
+            
+            cm = self.val_confusion_matrix.compute().cpu().numpy()
+            fig, ax = plt.subplots(figsize=(10, 8))
+            im = ax.imshow(cm, cmap='Blues')
+            plt.colorbar(im)
+            plt.title("Normalized Confusion Matrix")
+            plt.xlabel("Predicted")
+            plt.ylabel("True")
+            wandb.log({'val_confusion_matrix': wandb.Image(fig)})
             plt.close(fig)
+
 
             # Reset metrics
             self.val_f1.reset()
             self.val_f1_micro.reset()
             self.val_precision.reset()
+            self.val_confusion_matrix.reset()
             self.val_recall.reset()
             self.val_confusion_matrix.reset()
 
@@ -377,6 +389,7 @@ test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
 
 # Initialize model
 model = DeBertaModel(class_weights=class_weights)
+
 early_stopping = EarlyStopping(monitor="val_f1_micro", mode="max")
 checkpoint_callback = ModelCheckpoint(
     monitor='val_f1_micro',
@@ -386,9 +399,10 @@ checkpoint_callback = ModelCheckpoint(
     save_weights_only=True
 )
 trainer = Trainer(max_epochs=100, accelerator="gpu", precision="bf16-mixed", logger=wandb_logger, callbacks=[checkpoint_callback, early_stopping]) #TODO: keep precision, maybe increase GPUs if other two changes don't work out
+
 if load_checkpoint:
     model = DeBertaModel.load_from_checkpoint(checkpoint)
-else:
+else:    
     trainer.fit(model, train_loader, val_loader)
     checkpoint = checkpoint_callback.best_model_path
     model = DeBertaModel.load_from_checkpoint(checkpoint)

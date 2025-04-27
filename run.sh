@@ -17,6 +17,5 @@ pip install -r requirements.txt
 #python preprocessing.py --train_in ../GutBrainIE_Full_Collection_2025/Annotations/Train/gold_quality/json_format/train_gold.json --train_out trainGold.json --val_out valGold.json
 python preprocessing.py --train_in ../GutBrainIE_Full_Collection_2025/Annotations/Train/platinum_quality/json_format/train_platinum.json --train_out trainPlatinum.json --val_out valPlatinum.json
 #python preprocessing.py --train_in ../GutBrainIE_Full_Collection_2025/Annotations/Train/silver_quality/json_format/train_silver.json --train_out trainSilver.json --val_out valSilver.json
-#CUDA_LAUNCH_BLOCKING=1 python model.py trainData.json valData.json testData.json
+CUDA_LAUNCH_BLOCKING=1 python model.py trainData.json valData.json testData.json
 ##python postprocessing.py predictions.pkl testData.json
-
