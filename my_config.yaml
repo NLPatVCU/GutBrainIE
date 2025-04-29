@@ -24,10 +24,13 @@ trainer:
         dirpath: "checkpoints/"
         filename: "best-checkpoint"
         save_weights_only: true
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+      init_args:
+        logging_interval: "step"
   logger:
     class_path: lightning.pytorch.loggers.WandbLogger
     init_args:
       project: GutBrainIE
-      name: cli_test
+      name: lr_scheduler
       log_model: true
 

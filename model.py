@@ -73,6 +73,8 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             class_weights = self.class_weights.to(preds.device)
             loss = F.cross_entropy(preds, labels, weight=class_weights) 
             self.log('train_loss', loss)
+            current_lr = self.trainer.optimizers[0].param_groups[0]['lr']
+            self.log('lr', current_lr, prog_bar=True, logger=True, on_step=True)
             return loss
         def validation_step(self, batch, batch_idx):
             # this is the validation loop
@@ -154,7 +156,10 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
         #Optimizers
         def configure_optimizers(self):
 
-            return torch.optim.AdamW(self.parameters(), lr=self.lr)
+            optim = torch.optim.AdamW(self.parameters(), lr=self.lr)
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optim, T_max=self.trainer.estimated_stepping_batches)
+            return {"optimizer": optim, "lr_scheduler":{"scheduler": scheduler,"interval":"step", "frequency":1}}
 
 
 
+    
