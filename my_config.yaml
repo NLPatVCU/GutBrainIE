@@ -32,6 +32,6 @@ trainer:
     class_path: lightning.pytorch.loggers.WandbLogger
     init_args:
       project: GutBrainIE
-      name: fixed_preprocessing
+      name: afterAddingCNN1.3
       log_model: true
 
