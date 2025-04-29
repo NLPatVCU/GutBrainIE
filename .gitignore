@@ -1,1 +1,13 @@
-something
+*.json
+fast/
+gutbrainie2025/
+venv/
+run.sh
+lightning_logs/
+*log
+wandb/
+*.pkl
+GutBrainIE/
+checkpoints/
+config.yaml
+__pycache__/
