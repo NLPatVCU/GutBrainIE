@@ -66,10 +66,10 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             output = self.model(input_ids, attention_mask=attention_mask).last_hidden_state  # (B, L, 768)
             
             # Apply CNN
-            x = output.permute(0, 2, 1)  # -> (B, 768, L)
-            x = self.cnn(x)              # -> (B, 256, L)
+            x = output.permute(0, 2, 1)  # (B, 768, L)
+            x = self.cnn(x)              # (B, 256, L)
             x = F.relu(x)
-            x = x.permute(0, 2, 1)       # -> (B, L, 256)
+            x = x.permute(0, 2, 1)       # (B, L, 256)
 
             # Apply entity masks
             entity1_mask = (entity_mask == 1).unsqueeze(-1)  # (B, L, 1)
