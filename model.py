@@ -24,7 +24,9 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             super().__init__()
 
             self.model = AutoModel.from_pretrained("microsoft/deberta-v3-base")
-            self.linear = nn.Linear(768*2, 18)
+            self.cnn = nn.Conv1d(in_channels=768, out_channels=256, kernel_size=3, padding=1)
+            self.linear = nn.Linear(256 * 2, 18)
+            # self.linear = nn.Linear(768*2, 18)
             self.lr = lr
             self.class_weights = torch.Tensor(class_weights)
             self.save_hyperparameters()
@@ -43,23 +45,46 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             self.test_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes=num_labels, task="multiclass", normalize='true')
             self.preds = []
         
-        def forward(self, input_ids, attention_mask, entity_mask):
-            result = self.model(input_ids, attention_mask=attention_mask).last_hidden_state  # Shape: (batch_size, seq_len, 768)
+        # def forward(self, input_ids, attention_mask, entity_mask):
+        #     result = self.model(input_ids, attention_mask=attention_mask).last_hidden_state  # Shape: (batch_size, seq_len, 768)
 
-            entity1_mask = (entity_mask == 1).unsqueeze(-1)  # Shape: (batch_size, seq_len, 1)
-            entity2_mask = (entity_mask == 2).unsqueeze(-1)  # Shape: (batch_size, seq_len, 1)
+        #     entity1_mask = (entity_mask == 1).unsqueeze(-1)  # Shape: (batch_size, seq_len, 1)
+        #     entity2_mask = (entity_mask == 2).unsqueeze(-1)  # Shape: (batch_size, seq_len, 1)
 
-            entity_1 = result * entity1_mask  # Shape: (batch_size, seq_len, 768)
-            entity_2 = result * entity2_mask  # Shape: (batch_size, seq_len, 768)
+        #     entity_1 = result * entity1_mask  # Shape: (batch_size, seq_len, 768)
+        #     entity_2 = result * entity2_mask  # Shape: (batch_size, seq_len, 768)
 
-            entity_1 = entity_1.sum(dim=1) / entity1_mask.sum(dim=1)#.clamp(min=1)  # Shape: (batch_size, 768)
-            entity_2 = entity_2.sum(dim=1) / entity2_mask.sum(dim=1)#.clamp(min=1)  # Shape: (batch_size, 768)
+        #     entity_1 = entity_1.sum(dim=1) / entity1_mask.sum(dim=1)#.clamp(min=1)  # Shape: (batch_size, 768)
+        #     entity_2 = entity_2.sum(dim=1) / entity2_mask.sum(dim=1)#.clamp(min=1)  # Shape: (batch_size, 768)
 
-            result = torch.cat((entity_1, entity_2), dim=-1)  # Shape: (batch_size, 768 * 2)
+        #     result = torch.cat((entity_1, entity_2), dim=-1)  # Shape: (batch_size, 768 * 2)
 
-            result = self.linear(result)  # Shape: (batch_size, 18)
+        #     result = self.linear(result)  # Shape: (batch_size, 18)
     
+        #     return result
+        def forward(self, input_ids, attention_mask, entity_mask):
+            output = self.model(input_ids, attention_mask=attention_mask).last_hidden_state  # (B, L, 768)
+            
+            # Apply CNN
+            x = output.permute(0, 2, 1)  # -> (B, 768, L)
+            x = self.cnn(x)              # -> (B, 256, L)
+            x = F.relu(x)
+            x = x.permute(0, 2, 1)       # -> (B, L, 256)
+
+            # Apply entity masks
+            entity1_mask = (entity_mask == 1).unsqueeze(-1)  # (B, L, 1)
+            entity2_mask = (entity_mask == 2).unsqueeze(-1)  # (B, L, 1)
+
+            entity_1 = x * entity1_mask  # (B, L, 256)
+            entity_2 = x * entity2_mask  # (B, L, 256)
+
+            entity_1 = entity_1.sum(dim=1) / entity1_mask.sum(dim=1).clamp(min=1)  # (B, 256)
+            entity_2 = entity_2.sum(dim=1) / entity2_mask.sum(dim=1).clamp(min=1)  # (B, 256)
+
+            result = torch.cat((entity_1, entity_2), dim=-1)  # (B, 512)
+            result = self.linear(result)  # (B, 18)
             return result
+
           
         #Training Step
         def training_step(self, batch, batch_idx):
@@ -155,11 +180,6 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
 
         #Optimizers
         def configure_optimizers(self):
-
             optim = torch.optim.AdamW(self.parameters(), lr=self.lr)
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optim, T_max=self.trainer.estimated_stepping_batches)
-            return {"optimizer": optim, "lr_scheduler":{"scheduler": scheduler,"interval":"step", "frequency":1}}
-
-
-
-    
+            return {"optimizer": optim, "lr_scheduler":{"scheduler": scheduler,"interval":"step", "frequency":1}}    
