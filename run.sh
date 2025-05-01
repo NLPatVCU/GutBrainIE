@@ -11,16 +11,11 @@ module load python/3.11
 
 python -m venv venv
 source venv/bin/activate
-
-pip install -r requirements.txt
 rm checkpoints/*
+pip install -r requirements.txt
 python preprocessing.py --test_in ../GutBrainIE_Full_Collection_2025/Annotations/Dev/json_format/dev.json --test_out testData.json
-#python preprocessing.py --test_in ../gliner_preds_fixed_fancy.json --test_out testData.json
-python preprocessing.py --train_in ../GutBrainIE_Full_Collection_2025/Annotations/Train/platinum_quality/json_format/train_platinum.json --train_out trainPlatinum.json --val_out valPlatinum.json
-python preprocessing.py --train_in ../GutBrainIE_Full_Collection_2025/Annotations/Train/gold_quality/json_format/train_gold.json --train_out trainGold.json --val_out valGold.json
-python preprocessing.py --train_in ../GutBrainIE_Full_Collection_2025/Annotations/Train/silver_quality/json_format/train_silver.json --train_out trainSilver.json --val_out valSilver.json
-#python combineJSONFiles.py trainPlatinum.json trainGold.json trainData.json
-#python combineJSONFiles.py valPlatinum.json valGold.json valData.json
+# python preprocessing.py --test_in ../gliner_preds_fixed_fancy.json --test_out testData.json
+python preprocessing.py --train_in ../GutBrainIE_Full_Collection_2025/Annotations/Train/platinum_quality/json_format/train_platinum.json --train_out trainData.json --val_out valData.json
 python main.py fit --config=my_config.yaml 
-python main.py predict --config=my_config.yaml --ckpt_path checkpoints/archive/plat_gold_no_cnn.ckpt
+python main.py predict --config=my_config.yaml --ckpt_path checkpoints/best-checkpoint.ckpt
 python postprocessing.py predictions.pkl testData.json
