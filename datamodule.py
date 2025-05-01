@@ -76,10 +76,49 @@ class TrainDataset(Dataset):
         object_start_token = encoding.char_to_token(self.spans[idx][1][0])
         object_end_token = encoding.char_to_token(self.spans[idx][1][1])
         entity_mask = [0 for x in encoding['input_ids'].flatten()]
-        for i in range(subject_start_token, subject_end_token+1):
-            entity_mask[i] = 1
-        for i in range(object_start_token, object_end_token+1):
-            entity_mask[i]=2
+        try:
+            for i in range(subject_start_token, subject_end_token+1):
+                entity_mask[i] = 1
+            for i in range(object_start_token, object_end_token+1):
+                entity_mask[i]=2
+        
+        except:
+ 
+
+            print("ERROR OCCURED")
+ 
+
+            print("sentence: "+text)
+ 
+
+            print(f"subject_start_token: {subject_start_token} comes from char index {self.spans[idx][0][0]}")
+ 
+
+            print(f"subject_end_token: {subject_end_token} comes from char index {self.spans[idx][0][1]+1}")
+ 
+
+            print(f"object_start_token: {object_start_token} comes from char index {self.spans[idx][1][0]}")
+ 
+
+            print(f"object_end_token: {object_end_token} comes from char index {self.spans[idx][1][1]+1}")
+ 
+
+            print(len(text))
+ 
+
+            print(text[self.spans[idx][0][0]:self.spans[idx][0][1]+1])
+ 
+
+            print(text[self.spans[idx][1][0]:self.spans[idx][1][1]+1])
+ 
+
+            assert len(text[self.spans[idx][0][0]:self.spans[idx][0][1]+1])==(self.spans[idx][0][1]+1)-(self.spans[idx][0][0])
+ 
+
+            assert len(text[self.spans[idx][1][0]:self.spans[idx][1][1]+1])==(self.spans[idx][1][1]+1)-(self.spans[idx][1][0])
+ 
+
+            exit()
         return {
 
             'input_ids': encoding['input_ids'].flatten(),
@@ -148,13 +187,13 @@ class TestDataset(Dataset):
 
         )
         subject_start_token = encoding.char_to_token(self.spans[idx][0][0])
-        subject_end_token = encoding.char_to_token(self.spans[idx][0][1]+1)
+        subject_end_token = encoding.char_to_token(self.spans[idx][0][1])
         object_start_token = encoding.char_to_token(self.spans[idx][1][0])
-        object_end_token = encoding.char_to_token(self.spans[idx][1][1]+1)
+        object_end_token = encoding.char_to_token(self.spans[idx][1][1])
         entity_mask = [0 for x in encoding['input_ids'].flatten()]
-        for i in range(subject_start_token, subject_end_token):
+        for i in range(subject_start_token, subject_end_token+1):
             entity_mask[i] = 1
-        for i in range(object_start_token, object_end_token):
+        for i in range(object_start_token, object_end_token+1):
             entity_mask[i]=2
 
         return {
@@ -174,6 +213,16 @@ class DataModule(L.LightningDataModule):
         self.test_path = test_path
         self.batch_size=batch_size
         self.max_len=max_len
+        label_to_int = {'NONE': 0, 'impact': 1, 'influence': 2, 'interact': 3, 'located in': 4, 'change expression': 5, 'target': 6, 'part of': 7, 'used by': 8, 'change abundance': 9, 'is linked to': 10, 'strike': 11, 'affect': 12, 'change effect': 13, 'produced by': 14, 'administered': 15, 'is a': 16, 'compared to': 17}
+        y = []
+
+        with open("trainData.json") as f:
+            j = json.load(f)
+        for thing in j:
+            relation = thing["relation"]
+            classs = label_to_int[relation]
+            y.append(classs)
+        self.class_weights =  compute_class_weight(class_weight="balanced", classes=np.unique(y), y=y)
     def setup(self, stage=None):
         if stage=="fit" or stage is None:
             self.train_dataset = TrainDataset(self.train_path, self.max_len)

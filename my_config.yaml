@@ -1,13 +1,10 @@
 seed_everything: 42
 
-model:
-  class_weights: [0.11696739474517252,1.4662698412698412,0.61892797319933,4.926666666666667,0.8735224586288416,3.4212962962962963,0.7119460500963392,2.7992424242424243,1.5020325203252032,2.2393939393939393,0.7202729044834308,8.21111111111111,1.173015873015873,15.395833333333334,20.52777777777778,15.395833333333334,17.595238095238095,24.633333333333333]
-
 data:
   train_path: "trainData.json"
   val_path: "valData.json"
   test_path: "testData.json"
-
+  max_len: 500
 trainer:
   max_epochs: 100
   devices: 1
@@ -32,6 +29,6 @@ trainer:
     class_path: lightning.pytorch.loggers.WandbLogger
     init_args:
       project: GutBrainIE
-      name: afterAddingCNN1.3
+      name: no_cnn
       log_model: true
 
