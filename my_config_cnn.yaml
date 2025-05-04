@@ -1,8 +1,6 @@
 seed_everything: 42
-
 model:
-  class_path: model.DeBertaModel
-
+  class_path: model_cnn.DeBertaModel
 data:
   class_path: datamodule.DataModule
   init_args:
@@ -34,6 +32,6 @@ trainer:
     class_path: lightning.pytorch.loggers.WandbLogger
     init_args:
       project: GutBrainIE
-      name: no_cnn
+      name: testing_ensemble
       log_model: true
 
