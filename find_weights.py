@@ -4,23 +4,23 @@ import json
 from evaluate import eval_submission_6_4_ternary_mention_RE
 import optuna
 import numpy as np
-reg_probs_path = sys.argv[1]
-cnn_probs_path = sys.argv[2]
+#reg_probs_path = sys.argv[1]
+#cnn_probs_path = sys.argv[2]
 
 label_to_int = {'NONE': 0, 'impact': 1, 'influence': 2, 'interact': 3, 'located in': 4, 'change expression': 5, 'target': 6, 'part of': 7, 'used by': 8, 'change abundance': 9, 'is linked to': 10, 'strike': 11, 'affect': 12, 'change effect': 13, 'produced by': 14, 'administered': 15, 'is a': 16, 'compared to': 17}
 
-cnn_probs = pickle.load(open(cnn_probs_path, "rb"))
-reg_probs = pickle.load(open(reg_probs_path, "rb"))
+#cnn_probs = pickle.load(open(cnn_probs_path, "rb"))
+#reg_probs = pickle.load(open(reg_probs_path, "rb"))
+probs = {}
+for i in range (1, len(sys.argv)-1):
+    probs[sys.argv[i]] = pickle.load(open(sys.argv[i], "rb"))
 
-
-cnn_flat_probs = []
-reg_flat_probs = []
-
-for batch in cnn_probs:
-    cnn_flat_probs.extend(batch)
-for batch in reg_probs:
-    reg_flat_probs.extend(batch)
-all_probs = np.array([reg_flat_probs, cnn_flat_probs])
+flat_probs = {}
+for p in probs:
+    flat_probs[p] = []
+    for batch in probs[p]:
+        flat_probs[p].extend(batch)
+all_probs = np.array([flat_probs[p] for p in flat_probs])
 
 def objective(trial):
     weights = [trial.suggest_float(f"weight_model_{i}", 0.0, 1.0) for i in range(len(all_probs))]
@@ -92,7 +92,7 @@ def objective(trial):
     }
 
     testdata = None
-    with open(sys.argv[3], "r") as file:
+    with open(sys.argv[-1], "r") as file:
         testdata = json.load(file)
     binary_tag_based_relations = {}
     ternary_tag_based_relations = {}

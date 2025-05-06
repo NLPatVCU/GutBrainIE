@@ -62,28 +62,23 @@ valid_relations = { #made this into an actual dictionary
     ("microbiome", "microbiome" ):["compared to"]
 }
 
-reg_probs = None
-cnn_probs = None
-with open(sys.argv[1], "rb") as f:
-    reg_probs = pickle.load(f)
-with open(sys.argv[2], "rb") as f:
-    cnn_probs = pickle.load(f)
-
-flat_reg_probs = []
-flat_cnn_probs = []
-for p in reg_probs:
-    flat_reg_probs.extend(p.tolist())
-for p in cnn_probs:
-    flat_cnn_probs.extend(p.tolist())
-flat_probs = np.array([flat_reg_probs, flat_cnn_probs])
+probs = {}
+for i in range(1, len(sys.argv)-1):
+    probs[sys.argv[i]] = pickle.load(open(sys.argv[i], "rb"))
+flat_all_probs = {}
+for p in probs:
+    flat_all_probs[p] = [] 
+    for batch in probs[p]:
+        flat_all_probs[p].extend(batch)
+flat_probs = np.array([flat_all_probs[p] for p in flat_all_probs])
 best_weights_ensemble = pickle.load(open("best_weights_ensemble.pkl", "rb"))
-ensemble_probs = np.zeros_like(flat_cnn_probs)
+ensemble_probs = np.zeros_like(flat_all_probs[0])
 for i, probs in enumerate(flat_probs):
     ensemble_probs += best_weights_ensemble[i] * probs
 flat_preds = np.argmax(ensemble_probs, axis=1)
 
 testdata = None
-with open(sys.argv[3], "r") as file:
+with open(sys.argv[-1], "r") as file:
     testdata = json.load(file)
 binary_tag_based_relations = {}
 ternary_tag_based_relations = {}
