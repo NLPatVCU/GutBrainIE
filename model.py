@@ -147,7 +147,7 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
 
         def predict_step(self, batch , batch_idx, dataloader_idx=0):
             preds =  self(batch["input_ids"], batch["attention_mask"], batch["entity_mask"])
-            preds = torch.argmax(preds, dim=1)
+            #preds = torch.argmax(preds, dim=1)
             self.preds.append(preds.cpu().numpy())
             with open("predictions.pkl", "wb") as f:
                 pickle.dump(self.preds, f)

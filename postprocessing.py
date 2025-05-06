@@ -61,12 +61,26 @@ valid_relations = { #made this into an actual dictionary
     ("microbiome", "microbiome" ):["compared to"]
 }
 
-preds = None
+reg_probs = None
+cnn_probs = None
 with open(sys.argv[1], "rb") as f:
-    preds = pickle.load(f)
-flat_preds = []
-for p in preds:
-    flat_preds.extend(p.tolist())
+    reg_probs = pickle.load(f)
+with open(sys.argv[2], "rb") as f:
+    cnn_probs = pickle.load(f)
+
+flat_reg_probs = []
+flat_cnn_probs = []
+for p in reg_probs:
+    flat_reg_probs.extend(p.tolist())
+for p in cnn_probs:
+    flat_cnn_probs.extend(p.tolist())
+flat_probs = [flat_reg_probs, flat_cnn_probs]
+best_weights_ensemble = pickle.load(open("best_weights_ensemble.pkl"))
+ensemble_probs = np.zeros_like(flat_cnn_probs)
+for i, probs in enumerate(flat_probs):
+    ensemble_probs += weights[i] * probs
+flat_preds = np.argmax(ensemble_probs, axis=1)
+
 testdata = None
 with open(sys.argv[2], "r") as file:
     testdata = json.load(file)
