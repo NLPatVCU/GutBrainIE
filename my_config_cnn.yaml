@@ -4,8 +4,8 @@ model:
 data:
   class_path: datamodule.DataModule
   init_args:
-    train_path: "trainData.json"
-    val_path: "valData.json"
+    train_path: "trainPlatinum.json"
+    val_path: "valPlatinum.json"
     test_path: "testData.json"
     max_len: 500
 trainer:
@@ -32,6 +32,6 @@ trainer:
     class_path: lightning.pytorch.loggers.WandbLogger
     init_args:
       project: GutBrainIE
-      name: testing_ensemble
+      name: yes_cnn
       log_model: true
 

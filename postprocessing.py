@@ -72,7 +72,7 @@ for p in probs:
         flat_all_probs[p].extend(batch)
 flat_probs = np.array([flat_all_probs[p] for p in flat_all_probs])
 best_weights_ensemble = pickle.load(open("best_weights_ensemble.pkl", "rb"))
-ensemble_probs = np.zeros_like(flat_all_probs[0])
+ensemble_probs = np.zeros_like(flat_probs[0])
 for i, probs in enumerate(flat_probs):
     ensemble_probs += best_weights_ensemble[i] * probs
 flat_preds = np.argmax(ensemble_probs, axis=1)

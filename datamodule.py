@@ -216,7 +216,7 @@ class DataModule(L.LightningDataModule):
         label_to_int = {'NONE': 0, 'impact': 1, 'influence': 2, 'interact': 3, 'located in': 4, 'change expression': 5, 'target': 6, 'part of': 7, 'used by': 8, 'change abundance': 9, 'is linked to': 10, 'strike': 11, 'affect': 12, 'change effect': 13, 'produced by': 14, 'administered': 15, 'is a': 16, 'compared to': 17}
         y = []
 
-        with open("trainData.json") as f:
+        with open(self.train_path) as f:
             j = json.load(f)
         for thing in j:
             relation = thing["relation"]
