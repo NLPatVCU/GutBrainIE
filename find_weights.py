@@ -3,6 +3,7 @@ import sys
 import json
 from evaluate import eval_submission_6_4_ternary_mention_RE
 import optuna
+import numpy as np
 reg_probs_path = sys.argv[1]
 cnn_probs_path = sys.argv[2]
 
@@ -19,7 +20,7 @@ for batch in cnn_probs:
     cnn_flat_probs.extend(batch)
 for batch in reg_probs:
     reg_flat_probs.extend(batch)
-all_probs = [reg_flat_probs, cnn_flat_probs]
+all_probs = np.array([reg_flat_probs, cnn_flat_probs])
 
 def objective(trial):
     weights = [trial.suggest_float(f"weight_model_{i}", 0.0, 1.0) for i in range(len(all_probs))]
@@ -27,7 +28,7 @@ def objective(trial):
     ensemble_probs = np.zeros_like(all_probs[0])
     for i, probs in enumerate(all_probs):
         ensemble_probs += weights[i]*probs
-    ensemble_preds = np.argmax(ensemble_probs, axis=1)
+    flat_preds = np.argmax(ensemble_probs, axis=1)
 
 
     valid_relations = { #made this into an actual dictionary
@@ -125,7 +126,7 @@ def objective(trial):
 study = optuna.create_study(direction="minimize")
 study.optimize(objective, n_trials=100)
 best_params = study.best_params
-best_weights = np.array([best_params[f'weight_model_{i}'] for i in range(len(model_probs))])
+best_weights = np.array([best_params[f'weight_model_{i}'] for i in range(len(all_probs))])
 best_weights = best_weights / np.sum(best_weights)
 
 best_f1 = -study.best_value

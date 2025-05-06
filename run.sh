@@ -24,4 +24,5 @@ pip install -r requirements.txt
 #python main.py fit --config=my_config_cnn.yaml 
 #python main.py predict --config=my_config.yaml --ckpt_path checkpoints/archive/plat_no_cnn.ckpt
 #python postprocessing.py predictions_cnn.pkl testData.json
-python find_weights.py predictions.pkl predictions_cnn.pkl testData.json
+#python find_weights.py predictions.pkl predictions_cnn.pkl testData.json
+python postprocessing.py predictions.pkl predictions_cnn.pkl testData.json

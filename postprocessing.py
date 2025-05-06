@@ -1,6 +1,7 @@
 import pickle
 import sys
 import json
+import numpy as np
 valid_relations = { #made this into an actual dictionary
     ("anatomical location", "human"): ["located in"],
     ("anatomical location", "animal"):[ "located in"],
@@ -74,15 +75,15 @@ for p in reg_probs:
     flat_reg_probs.extend(p.tolist())
 for p in cnn_probs:
     flat_cnn_probs.extend(p.tolist())
-flat_probs = [flat_reg_probs, flat_cnn_probs]
-best_weights_ensemble = pickle.load(open("best_weights_ensemble.pkl"))
+flat_probs = np.array([flat_reg_probs, flat_cnn_probs])
+best_weights_ensemble = pickle.load(open("best_weights_ensemble.pkl", "rb"))
 ensemble_probs = np.zeros_like(flat_cnn_probs)
 for i, probs in enumerate(flat_probs):
-    ensemble_probs += weights[i] * probs
+    ensemble_probs += best_weights_ensemble[i] * probs
 flat_preds = np.argmax(ensemble_probs, axis=1)
 
 testdata = None
-with open(sys.argv[2], "r") as file:
+with open(sys.argv[3], "r") as file:
     testdata = json.load(file)
 binary_tag_based_relations = {}
 ternary_tag_based_relations = {}
