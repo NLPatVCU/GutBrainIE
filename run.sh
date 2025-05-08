@@ -11,7 +11,6 @@ module load python/3.11
 
 python -m venv venv
 source venv/bin/activate
-
 pip install -r requirements.txt
 python preprocessing.py --test_in ../baseline_model_test_preds.json --test_out testData.json
 python preprocessing.py --train_in ../GutBrainIE_Full_Collection_2025/Annotations/Train/gold_quality/json_format/train_gold.json --train_out trainGold.json
