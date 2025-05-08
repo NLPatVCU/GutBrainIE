@@ -9,7 +9,7 @@ trainer:
   logger:
     class_path: lightning.pytorch.loggers.WandbLogger
     init_args:
-      name: name_here
+      name: plat_plus_no_cnn
       save_dir: .
       version: null
       offline: false
@@ -58,7 +58,7 @@ trainer:
   - class_path: lightning.pytorch.callbacks.ModelCheckpoint
     init_args:
       dirpath: checkpoints/
-      filename: best-checkpoint
+      filename: plat_plus_no_cnn
       monitor: val_f1_micro
       verbose: false
       save_last: null
@@ -119,5 +119,4 @@ data:
   max_len: 500
 optimizer: null
 lr_scheduler: null
-return_predictions: null
-ckpt_path: checkpoints/mixed_cnn_full.ckpt
+ckpt_path: null
