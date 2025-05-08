@@ -1,7 +1,6 @@
 import pickle
 import lightning as L
 import torch
-from transformers import DebertaV2Tokenizer, AutoModel, DebertaV2TokenizerFast
 from torch.utils.data import DataLoader, Dataset
 from lightning.pytorch import Trainer
 import torch.nn.functional as F
@@ -10,16 +9,12 @@ import json
 import sys
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
-from lightning.pytorch.loggers import WandbLogger
 import numpy as np
 from sklearn.utils.class_weight import compute_class_weight
 import torchmetrics
 import matplotlib.pyplot as plt
-# import wandb
-wandb_logger = WandbLogger(project="GutBrainIE", name="mixed_quality_final", log_model=True)
-#Push to Binary RE Branch
-
-
+from transformers import AutoModel
+import wandb
 #Deberta Model Class
 class DeBertaModel(L.LightningModule): #added inheritance to lightning module here
 
@@ -31,7 +26,7 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             self.model = AutoModel.from_pretrained("microsoft/deberta-v3-base")
             self.linear = nn.Linear(768*2, 18)
             self.lr = lr
-            self.class_weights = class_weights
+            self.class_weights = torch.Tensor(class_weights)
             self.save_hyperparameters()
             # Metrics for validation
             self.val_f1 = torchmetrics.F1Score(num_classes=num_labels, task="multiclass", average=None)
@@ -46,7 +41,7 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             self.test_precision = torchmetrics.Precision(num_classes=num_labels, task="multiclass", average=None)
             self.test_recall = torchmetrics.Recall(num_classes=num_labels, task="multiclass", average=None)
             self.test_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes=num_labels, task="multiclass", normalize='true')
-
+            self.preds = []
         
         def forward(self, input_ids, attention_mask, entity_mask):
             result = self.model(input_ids, attention_mask=attention_mask).last_hidden_state  # Shape: (batch_size, seq_len, 768)
@@ -68,7 +63,6 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
           
         #Training Step
         def training_step(self, batch, batch_idx):
-
             input_ids = batch['input_ids']
 
             attention_mask = batch['attention_mask']
@@ -79,10 +73,11 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             class_weights = self.class_weights.to(preds.device)
             loss = F.cross_entropy(preds, labels, weight=class_weights) 
             self.log('train_loss', loss)
+            current_lr = self.trainer.optimizers[0].param_groups[0]['lr']
+            self.log('lr', current_lr, prog_bar=True, logger=True, on_step=True)
             return loss
         def validation_step(self, batch, batch_idx):
             # this is the validation loop
-            print(f"Validation step {batch_idx} started")
             input_ids = batch['input_ids']
 
             attention_mask = batch['attention_mask']
@@ -104,6 +99,7 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             self.val_precision.update(preds_class, labels)
             self.val_recall.update(preds_class, labels)
             self.val_confusion_matrix.update(preds_class, labels)
+
             self.log("val_loss", val_loss)
             return val_loss
 
@@ -125,14 +121,26 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
                 self.log(f'val_recall_class_{i}', rec, on_epoch=True, prog_bar=False, sync_dist=True)
 
             # Log confusion matrix
-            fig, ax = self.val_confusion_matrix.plot(add_text=False)
+            # fig, ax = self.val_confusion_matrix.plot(add_text=True)
             # wandb.log({'val_confusion_matrix': [wandb.Image(fig)]})
+            # plt.close(fig)
+            
+            cm = self.val_confusion_matrix.compute().cpu().numpy()
+            fig, ax = plt.subplots(figsize=(10, 8))
+            im = ax.imshow(cm, cmap='Blues')
+            plt.colorbar(im)
+            plt.title("Normalized Confusion Matrix")
+            plt.xlabel("Predicted")
+            plt.ylabel("True")
+            wandb.log({'val_confusion_matrix': wandb.Image(fig)})
             plt.close(fig)
+
 
             # Reset metrics
             self.val_f1.reset()
             self.val_f1_micro.reset()
             self.val_precision.reset()
+            self.val_confusion_matrix.reset()
             self.val_recall.reset()
             self.val_confusion_matrix.reset()
 
@@ -140,260 +148,18 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
         def predict_step(self, batch , batch_idx, dataloader_idx=0):
             preds =  self(batch["input_ids"], batch["attention_mask"], batch["entity_mask"])
             preds = torch.argmax(preds, dim=1)
+            self.preds.append(preds.cpu().numpy())
+            with open("predictions.pkl", "wb") as f:
+                pickle.dump(self.preds, f)
             return preds
 
         #Optimizers
         def configure_optimizers(self):
 
-            return torch.optim.AdamW(self.parameters(), lr=self.lr)
+            optim = torch.optim.AdamW(self.parameters(), lr=self.lr)
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optim, T_max=self.trainer.estimated_stepping_batches)
+            return {"optimizer": optim, "lr_scheduler":{"scheduler": scheduler,"interval":"step", "frequency":1}}
 
 
-#Data Preperation Class
-class TrainDataset(Dataset):
 
-    def __init__(self, texts, labels,spans, tokenizer, max_len):
-
-        self.texts = texts #sentences
-
-        self.labels = labels #relation
-
-        self.tokenizer = tokenizer
-
-        self.max_len = max_len
-        self.spans = spans
-
-
-
-    def __len__(self):
-
-        return len(self.texts)
-
-
-
-    def __getitem__(self, idx):
-
-        text = self.texts[idx]
-
-        label = self.labels[idx]
-
-        encoding = self.tokenizer.encode_plus(
-
-            text,
-
-            add_special_tokens=True,
-
-            max_length=self.max_len,
-
-            return_token_type_ids=False,
-
-            padding='max_length',
-
-            return_attention_mask=True,
-
-            return_tensors='pt',
-
-            truncation=True,
-
-        )
-        subject_start_token = encoding.char_to_token(self.spans[idx][0][0])
-        subject_end_token = encoding.char_to_token(self.spans[idx][0][1])
-        object_start_token = encoding.char_to_token(self.spans[idx][1][0])
-        object_end_token = encoding.char_to_token(self.spans[idx][1][1])
-        entity_mask = [0 for x in encoding['input_ids'].flatten()]
-        try:
-            for i in range(subject_start_token, subject_end_token+1):
-                entity_mask[i] = 1
-            for i in range(object_start_token, object_end_token+1):
-                entity_mask[i]=2
-        except:
-            print("ERROR OCCURED")
-            print("sentence: "+text)
-            print(f"subject_start_token: {subject_start_token} comes from char index {self.spans[idx][0][0]}")
-            print(f"subject_end_token: {subject_end_token} comes from char index {self.spans[idx][0][1]+1}")
-            print(f"object_start_token: {object_start_token} comes from char index {self.spans[idx][1][0]}")
-            print(f"object_end_token: {object_end_token} comes from char index {self.spans[idx][1][1]+1}")
-            print(len(text))
-            print(text[self.spans[idx][0][0]:self.spans[idx][0][1]+1])
-            print(text[self.spans[idx][1][0]:self.spans[idx][1][1]+1])
-            assert len(text[self.spans[idx][0][0]:self.spans[idx][0][1]+1])==(self.spans[idx][0][1]+1)-(self.spans[idx][0][0])
-            assert len(text[self.spans[idx][1][0]:self.spans[idx][1][1]+1])==(self.spans[idx][1][1]+1)-(self.spans[idx][1][0])
-            exit()
-        return {
-
-            'input_ids': encoding['input_ids'].flatten(),
-
-            'attention_mask': encoding['attention_mask'].flatten(),
-
-            'labels': torch.tensor(label, dtype=torch.long),
-            "entity_mask": torch.tensor(entity_mask, dtype=torch.long)
-
-        }
-class TestDataset(Dataset):
-
-    def __init__(self, texts, spans, tokenizer, max_len):
-
-        self.texts = texts #sentences
-
-        self.tokenizer = tokenizer
-
-        self.max_len = max_len
-        self.spans = spans
-
-
-
-    def __len__(self):
-
-        return len(self.texts)
-
-
-
-    def __getitem__(self, idx):
-
-        text = self.texts[idx]
-
-        encoding = self.tokenizer.encode_plus(
-
-            text,
-
-            add_special_tokens=True,
-
-            max_length=self.max_len,
-
-            return_token_type_ids=False,
-
-            padding='max_length',
-
-            return_attention_mask=True,
-
-            return_tensors='pt',
-
-            truncation=True,
-
-        )
-        subject_start_token = encoding.char_to_token(self.spans[idx][0][0])
-        subject_end_token = encoding.char_to_token(self.spans[idx][0][1]+1)
-        object_start_token = encoding.char_to_token(self.spans[idx][1][0])
-        object_end_token = encoding.char_to_token(self.spans[idx][1][1]+1)
-        entity_mask = [0 for x in encoding['input_ids'].flatten()]
-        for i in range(subject_start_token, subject_end_token):
-            entity_mask[i] = 1
-        for i in range(object_start_token, object_end_token):
-            entity_mask[i]=2
-
-        return {
-
-            'input_ids': encoding['input_ids'].flatten(),
-
-            'attention_mask': encoding['attention_mask'].flatten(),
-            "entity_mask": torch.tensor(entity_mask, dtype=torch.long)
-
-
-        }
-
-def map_labels(labels): #map labels to ints (model works with numbers, not string labels :) )
-    label_to_int = {}
-    counter = 1
-    label_to_int["NONE"] = 0
-    for label in labels:
-        if label not in label_to_int:
-            label_to_int[label] = counter
-            counter+=1
-    dist = {label_to_int[x]:0 for x in label_to_int}
-    for label in labels:
-        dist[label_to_int[label]]+=1
-    return label_to_int, dist
-def get_max_len_sent(tokenizer, sents):
-    tok_sents = tokenizer(sents, truncation=False)  # Tokenize sentences
-    max_len = 0
-    for sent in tok_sents["input_ids"]:  # Iterate over tokenized sequences
-        if len(sent) > max_len:
-            max_len = len(sent)
-    return max_len
-# Prepare data
-
-# Open and read the JSON file
-load_checkpoint = False
-checkpoint=None
-if len(sys.argv)==5:
-    load_checkpoint = True
-    checkpoint = sys.argv[4]
-train_texts = []
-train_labels = []
-train_spans = []
-
-val_texts = []
-val_labels = []
-val_spans = []
-
-test_texts = []
-test_spans = []
-
-traindata = None
-testdata = None
-valdata=None
-trainfile = sys.argv[1]
-valfile = sys.argv[2]
-testfile = sys.argv[3]
-with open(trainfile, 'r') as file: 
-    traindata = json.load(file)
-
-for item in traindata:
-    train_texts.append(item['sample'])
-    train_labels.append(item['relation'])
-    train_spans.append(((item["relative_subject_start"], item["relative_subject_end"]),(item["relative_object_start"], item["relative_object_end"])))
-
-with open(valfile, 'r') as file: 
-    valdata = json.load(file)
-
-for item in valdata:
-    val_texts.append(item['sample'])
-    val_labels.append(item['relation'])
-    val_spans.append(((item["relative_subject_start"], item["relative_subject_end"]),(item["relative_object_start"], item["relative_object_end"])))
-
-
-
-with open(testfile, "r") as file:
-    testdata = json.load(file)
-for item in testdata:
-    test_texts.append(item["sample"])
-    test_spans.append(((item["relative_subject_start"], item["relative_subject_end"]),(item["relative_object_start"], item["relative_object_end"])))
-#label_to_int, dist = map_labels(train_labels)
-
-label_to_int = {'NONE': 0, 'impact': 1, 'influence': 2, 'interact': 3, 'located in': 4, 'change expression': 5, 'target': 6, 'part of': 7, 'used by': 8, 'change abundance': 9, 'is linked to': 10, 'strike': 11, 'affect': 12, 'change effect': 13, 'produced by': 14, 'administered': 15, 'is a': 16, 'compared to': 17}
-
-train_labels = [label_to_int[label] for label in train_labels] # all this is doing is turning the labels into their respective int
-class_weights = torch.tensor(compute_class_weight(class_weight="balanced", classes=np.unique(train_labels), y=train_labels), dtype=torch.float)
-val_labels = [label_to_int[label] for label in val_labels] # all this is doing is turning the labels into their respective int
-#tokenizer = DebertaV2Tokenizer.from_pretrained("microsoft/deberta-v3-base", use_fast=True)
-tokenizer = DebertaV2TokenizerFast.from_pretrained("microsoft/deberta-v3-base")
-max_len = max(get_max_len_sent(tokenizer, train_texts), get_max_len_sent(tokenizer, val_texts))+50 #some leeway
-train_dataset = TrainDataset(train_texts, train_labels,train_spans, tokenizer = tokenizer,max_len=max_len)
-val_dataset = TrainDataset(val_texts, val_labels, val_spans, tokenizer=tokenizer, max_len=max_len)
-test_dataset = TestDataset(test_texts,test_spans, tokenizer=tokenizer, max_len=max_len)
-
-train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=16, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
-
-# Initialize model
-model = DeBertaModel(class_weights=class_weights)
-early_stopping = EarlyStopping(monitor="val_f1_micro", mode="max")
-checkpoint_callback = ModelCheckpoint(
-    monitor='val_f1_micro',
-    save_top_k=1,
-    mode='max',             
-    filename='best-checkpoint',
-    save_weights_only=True
-)
-trainer = Trainer(max_epochs=100, accelerator="gpu", precision="bf16-mixed", logger=wandb_logger, callbacks=[checkpoint_callback, early_stopping]) #TODO: keep precision, maybe increase GPUs if other two changes don't work out
-if load_checkpoint:
-    model = DeBertaModel.load_from_checkpoint(checkpoint)
-else:
-    trainer.fit(model, train_loader, val_loader)
-    checkpoint = checkpoint_callback.best_model_path
-    model = DeBertaModel.load_from_checkpoint(checkpoint)
-trainer = Trainer()
-predictions = trainer.predict(model, test_loader)
-print(predictions)
-with open("predictions.pkl", "wb") as file:
-    pickle.dump(predictions, file)
+    

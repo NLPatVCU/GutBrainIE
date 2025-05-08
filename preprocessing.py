@@ -22,6 +22,7 @@ valid_relations = { #made this into an actual dictionary
     ("chemical", "human" ):"located in",
     ("chemical", "animal" ):"located in",
     ("chemical", "chemical"):"interact",
+    ("chemical", "chemical"): "part of",
     ("chemical", "microbiome" ):"impact",
     ("chemical", "microbiome" ):"produced by",
     ("chemical", "bacteria" ):"impact",
@@ -34,7 +35,6 @@ valid_relations = { #made this into an actual dictionary
     ("food", "microbiome" ):"impact",
     ("chemical", "DDF" ):"influence",
     ("dietary supplement", "DDF" ):"influence",
-    ("drug", "DDF" ):"influence",
     ("food", "DDF" ):"influence",
     ("chemical", "gene" ):"change expression",
     ("dietary supplement", "gene" ):"change expression",
@@ -57,7 +57,7 @@ valid_relations = { #made this into an actual dictionary
     ("DDF", "human" ):"target",
     ("DDF", "animal" ):"target",
     ("drug", "chemical" ):"interact",
-    ("drug", "chemical" ):"interact",
+    ("drug", "drug" ):"interact",
     ("drug", "DDF" ):"change effect",
     ("human", "biomedical technique" ):"used by",
     ("animal", "biomedical technique" ):"used by",
@@ -147,6 +147,55 @@ def preprocess_train_data(data):
                             relative_object_end = (object_end-span.start_char)
             #print((title+abstract)[relative_subject_start:relative_subject_end])
             # print(subject_text)
+            if -1 in [relative_subject_start, relative_subject_end]:
+                subject_sample = ""
+                if subject_location=="abstract":
+                    for span in abstract_doc.sents:
+                        if span.start_char<=subject_start and span.end_char>=subject_start:
+                            subject_sample+=span.text
+                            relative_subject_start = subject_start-span.start_char
+                        elif span.start_char<=subject_end+1 and span.end_char>=subject_end+1:
+                            prev_len = len(subject_sample)+1
+                            subject_sample+=" "+span.text
+                            relative_subject_end = prev_len+(subject_end-span.start_char)
+                if subject_location=="title":
+                    for span in title_doc.sents:
+                        if span.start_char<=subject_start and span.end_char>=subject_start:
+                            subject_sample+=span.text
+                            relative_subject_start = subject_start-span.start_char
+                        elif span.start_char<=subject_end+1 and span.end_char>=subject_end+1:
+                            prev_len = len(subject_sample)+1
+                            subject_sample+=span.text+" "
+                            relative_subject_end = prev_len+(subject_end-span.start_char)
+                sample = subject_sample + sample
+                if -1 not in [relative_object_start, relative_object_end]:
+                    relative_object_start+=len(subject_sample)
+                    relative_object_end+=len(subject_sample)
+            if -1 in [relative_object_start, relative_object_end]:
+                object_sample = ""
+                prevprev_len = len(sample)
+                if object_location=="abstract":
+                    for span in abstract_doc.sents:
+                        if span.start_char<=object_start and span.end_char>=object_start:
+                            object_sample+=span.text
+                            relative_object_start = object_start-span.start_char
+                        elif span.start_char<=object_end and span.end_char>=object_end:
+                            prev_len = len(object_sample)+1
+                            object_sample+=" "+span.text
+                            relative_object_end = prev_len+(object_end-span.start_char)
+                if object_location=="title":
+                    for span in title_doc.sents:
+                        if span.start_char<=object_start+1 and span.end_char>=object_start+1:
+                            object_sample+=span.text
+                            relative_object_start = object_start-span.start_char
+                        elif span.start_char<=object_end+1 and span.end_char>=object_end+1:
+                            prev_len = len(object_sample)+1
+                            object_sample+=" "+span.text
+                            relative_object_end = prev_len+(object_end-span.start_char)
+                sample += object_sample
+                relative_object_start+=prevprev_len
+                relative_object_end+=prevprev_len
+
             assert (sample)[relative_subject_start:relative_subject_end + 1] == subject_text
             assert (sample)[relative_object_start:relative_object_end + 1] == object_text
         
@@ -202,7 +251,7 @@ def preprocess_train_data(data):
                                 relative_object_start = len(sample)+(object_start-span.start_char)
                                 relative_object_end = len(sample)+(object_end-span.start_char)
                                 sample+=span.text
-                            elif sample == span.text:
+                            elif span.start_char<= object_start and span.end_char>=object_end+1 and sample == span.text:
                                 relative_object_start = (object_start-span.start_char)
                                 relative_object_end = (object_end-span.start_char)
 
@@ -212,9 +261,58 @@ def preprocess_train_data(data):
                                 relative_object_start = len(sample)+(object_start-span.start_char)
                                 relative_object_end = len(sample)+(object_end-span.start_char)
                                 sample+=span.text
-                            elif sample == span.text:
+                            elif span.start_char<=object_start and span.end_char>=object_end+1 and sample == span.text:
                                 relative_object_start = (object_start-span.start_char)
                                 relative_object_end = (object_end-span.start_char)
+                    if -1 in [relative_subject_start, relative_subject_end]:
+                        subject_sample = ""
+                        if subject_location=="abstract":
+                            for span in abstract_doc.sents:
+                                if span.start_char<=subject_start and span.end_char>=subject_start:
+                                    subject_sample+=span.text
+                                    relative_subject_start = subject_start-span.start_char
+                                elif span.start_char<=subject_end+1 and span.end_char>=subject_end+1:
+                                    prev_len = len(subject_sample)+1
+                                    subject_sample+=" "+span.text
+                                    relative_subject_end = prev_len+(subject_end-span.start_char)
+                        if subject_location=="title":
+                            for span in title_doc.sents:
+                                if span.start_char<=subject_start and span.end_char>=subject_start:
+                                    subject_sample+=span.text
+                                    relative_subject_start = subject_start-span.start_char
+                                elif span.start_char<=subject_end+1 and span.end_char>=subject_end+1:
+                                    prev_len = len(subject_sample)+1
+                                    subject_sample+=span.text+" "
+                                    relative_subject_end = prev_len+(subject_end-span.start_char)
+                        sample = subject_sample + sample
+                        if -1 not in [relative_object_start, relative_object_end]:
+                            relative_object_start+=len(subject_sample)
+                            relative_object_end+=len(subject_sample)
+                    if -1 in [relative_object_start, relative_object_end]:
+                        object_sample = ""
+                        prevprev_len = len(sample)
+                        if object_location=="abstract":
+                            for span in abstract_doc.sents:
+                                if span.start_char<=object_start and span.end_char>=object_start:
+                                    object_sample+=span.text
+                                    relative_object_start = object_start-span.start_char
+                                elif span.start_char<=object_end and span.end_char>=object_end:
+                                    prev_len = len(object_sample)+1
+                                    object_sample+=" "+span.text
+                                    relative_object_end = prev_len+(object_end-span.start_char)
+                        if object_location=="title":
+                            for span in title_doc.sents:
+                                if span.start_char<=object_start+1 and span.end_char>=object_start+1:
+                                    object_sample+=span.text
+                                    relative_object_start = object_start-span.start_char
+                                elif span.start_char<=object_end+1 and span.end_char>=object_end+1:
+                                    prev_len = len(object_sample)+1
+                                    object_sample+=" "+span.text
+                                    relative_object_end = prev_len+(object_end-span.start_char)
+                        sample += object_sample
+                        relative_object_start+=prevprev_len
+                        relative_object_end+=prevprev_len
+
 
                     # Check if the relation is NONE and if the subject and object types are valid
                     if (sample, (relative_subject_start, relative_subject_end), (relative_object_start, relative_object_end)) not in used:
@@ -318,6 +416,9 @@ def preprocess_test_data(data):
                     object_end = e1.get("end_idx")
                     subject_location = e.get("location")
                     object_location = e1.get("location")
+                    subject_text = e.get("text_span")
+                    object_text = e1.get("text_span")
+
                     sample = ""
                     relative_subject_start = -1
                     relative_subject_end = -1
@@ -345,7 +446,7 @@ def preprocess_test_data(data):
                                 relative_object_start = len(sample)+(object_start-span.start_char)
                                 relative_object_end = len(sample)+(object_end-span.start_char)
                                 sample+=span.text
-                            elif sample == span.text:
+                            elif span.start_char<= object_start and span.end_char>=object_end+1 and sample == span.text:
                                 relative_object_start = (object_start-span.start_char)
                                 relative_object_end = (object_end-span.start_char)
 
@@ -355,9 +456,60 @@ def preprocess_test_data(data):
                                 relative_object_start = len(sample)+(object_start-span.start_char)
                                 relative_object_end = len(sample)+(object_end-span.start_char)
                                 sample+=span.text
-                            elif sample == span.text:
+                            elif span.start_char<=object_start and span.end_char>=object_end+1 and sample == span.text:
                                 relative_object_start = (object_start-span.start_char)
                                 relative_object_end = (object_end-span.start_char)
+                    if -1 in [relative_subject_start, relative_subject_end]:
+                        subject_sample = ""
+                        if subject_location=="abstract":
+                            for span in abstract_doc.sents:
+                                if span.start_char<=subject_start and span.end_char>=subject_start:
+                                    subject_sample+=span.text
+                                    relative_subject_start = subject_start-span.start_char
+                                elif span.start_char<=subject_end+1 and span.end_char>=subject_end+1:
+                                    prev_len = len(subject_sample)+1
+                                    subject_sample+=" "+span.text
+                                    relative_subject_end = prev_len+(subject_end-span.start_char)
+                        if subject_location=="title":
+                            for span in title_doc.sents:
+                                if span.start_char<=subject_start and span.end_char>=subject_start:
+                                    subject_sample+=span.text
+                                    relative_subject_start = subject_start-span.start_char
+                                elif span.start_char<=subject_end+1 and span.end_char>=subject_end+1:
+                                    prev_len = len(subject_sample)+1
+                                    subject_sample+=span.text+" "
+                                    relative_subject_end = prev_len+(subject_end-span.start_char)
+                        sample = subject_sample + sample
+                        if -1 not in [relative_object_start, relative_object_end]:
+                            relative_object_start+=len(subject_sample)
+                            relative_object_end+=len(subject_sample)
+                    if -1 in [relative_object_start, relative_object_end]:
+                        object_sample = ""
+                        prevprev_len = len(sample)
+                        if object_location=="abstract":
+                            for span in abstract_doc.sents:
+                                if span.start_char<=object_start and span.end_char>=object_start:
+                                    object_sample+=span.text
+                                    relative_object_start = object_start-span.start_char
+                                elif span.start_char<=object_end and span.end_char>=object_end:
+                                    prev_len = len(object_sample)+1
+                                    object_sample+=" "+span.text
+                                    relative_object_end = prev_len+(object_end-span.start_char)
+                        if object_location=="title":
+                            for span in title_doc.sents:
+                                if span.start_char<=object_start+1 and span.end_char>=object_start+1:
+                                    object_sample+=span.text
+                                    relative_object_start = object_start-span.start_char
+                                elif span.start_char<=object_end+1 and span.end_char>=object_end+1:
+                                    prev_len = len(object_sample)+1
+                                    object_sample+=" "+span.text
+                                    relative_object_end = prev_len+(object_end-span.start_char)
+                        sample += object_sample
+                        relative_object_start+=prevprev_len
+                        relative_object_end+=prevprev_len
+                    assert (sample)[relative_subject_start:relative_subject_end + 1] == subject_text
+                    assert (sample)[relative_object_start:relative_object_end + 1] == object_text
+
 
                     processed_data.append({
                         "sample": sample,
