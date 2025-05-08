@@ -9,3 +9,4 @@ wandb/
 *.pkl
 GutBrainIE/
 checkpoints/
+__pycache__/

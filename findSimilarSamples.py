@@ -59,7 +59,7 @@ for relation, original_samples in original_samples_by_relation.items():
             continue
         sample_vec = getVectorRep(item['sample'])
         sim = compareVectorRep(avg_vec, sample_vec)
-        if sim >= 0.70:
+        if sim >= 0.75:
             #item['similarity'] = sim --> use if you want to see similarity
             results.append(item)
 
