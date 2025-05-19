@@ -9,7 +9,7 @@ trainer:
   logger:
     class_path: lightning.pytorch.loggers.WandbLogger
     init_args:
-      name: plat_plus_no_cnn
+      name: mixed_cnn
       save_dir: .
       version: null
       offline: false
@@ -58,7 +58,7 @@ trainer:
   - class_path: lightning.pytorch.callbacks.ModelCheckpoint
     init_args:
       dirpath: checkpoints/
-      filename: plat_plus_no_cnn
+      filename: mixed_cnn
       monitor: val_f1_micro
       verbose: false
       save_last: null
@@ -109,14 +109,18 @@ trainer:
   reload_dataloaders_every_n_epochs: 0
   default_root_dir: null
 model:
-  lr: 5.0e-05
-  num_labels: 18
+  class_path: model.individual.model_cnn.DeBertaModel
+  init_args:
+    lr: 5.0e-05
+    num_labels: 18
 data:
-  train_path: trainData.json
-  val_path: valData.json
-  test_path: testData.json
-  batch_size: 16
-  max_len: 500
+  class_path: datamodule.datamodule.DataModule
+  init_args:
+    train_path: trainData.json
+    val_path: valData.json
+    test_path: testData.json
+    batch_size: 16
+    max_len: 500
 optimizer: null
 lr_scheduler: null
 ckpt_path: null

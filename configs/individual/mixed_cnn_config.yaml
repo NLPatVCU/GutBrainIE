@@ -1,10 +1,13 @@
 seed_everything: 42
-
+model:
+  class_path: model.individual.model_cnn.DeBertaModel
 data:
-  train_path: "trainData.json"
-  val_path: "valData.json"
-  test_path: "testData.json"
-  max_len: 500
+  class_path: datamodule.datamodule.DataModule
+  init_args:
+    train_path: "trainData.json"
+    val_path: "valData.json"
+    test_path: "testData.json"
+    max_len: 500
 trainer:
   max_epochs: 100
   devices: 1
@@ -20,15 +23,14 @@ trainer:
         save_top_k: 1
         mode: max
         dirpath: "checkpoints/"
-        filename: "plat_plus_no_cnn"
+        filename: "mixed_cnn"
         save_weights_only: true
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
       init_args:
         logging_interval: "step"
-  logger:
-    class_path: lightning.pytorch.loggers.WandbLogger
-    init_args:
-      project: GutBrainIE
-      name: plat_plus_no_cnn
-      log_model: true
-
+#  logger:
+#    class_path: lightning.pytorch.loggers.WandbLogger
+#    init_args:
+#      project: GutBrainIE
+#      name: mixed_cnn
+#      log_model: true

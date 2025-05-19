@@ -9,7 +9,10 @@ wandb/
 *.pkl
 GutBrainIE/
 checkpoints/
+checkpoints2/
 results/
+results2/
 predictions/
 config.yaml
 __pycache__/
+results_final/

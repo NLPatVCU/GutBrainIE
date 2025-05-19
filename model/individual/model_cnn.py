@@ -38,14 +38,14 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             self.val_f1_micro = torchmetrics.F1Score(num_classes=num_labels, task="multiclass", average='micro')
             self.val_precision = torchmetrics.Precision(num_classes=num_labels, task="multiclass", average=None)
             self.val_recall = torchmetrics.Recall(num_classes=num_labels, task="multiclass", average=None)
-            self.val_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes=num_labels, task="multiclass", normalize='true')
+            #self.val_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes=num_labels, task="multiclass", normalize='true')
 
             # Metrics for testing
             self.test_f1 = torchmetrics.F1Score(num_classes=num_labels, task="multiclass", average=None)
             self.test_f1_micro = torchmetrics.F1Score(num_classes=num_labels, task="multiclass", average='micro')
             self.test_precision = torchmetrics.Precision(num_classes=num_labels, task="multiclass", average=None)
             self.test_recall = torchmetrics.Recall(num_classes=num_labels, task="multiclass", average=None)
-            self.test_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes=num_labels, task="multiclass", normalize='true')
+            #self.test_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes=num_labels, task="multiclass", normalize='true')
             self.preds = []
             self.preds = []
         
@@ -129,7 +129,7 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             self.val_f1_micro.update(preds_class, labels)
             self.val_precision.update(preds_class, labels)
             self.val_recall.update(preds_class, labels)
-            self.val_confusion_matrix.update(preds_class, labels)
+            #self.val_confusion_matrix.update(preds_class, labels)
 
 
             self.log("val_loss", val_loss)
@@ -157,24 +157,14 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             # wandb.log({'val_confusion_matrix': [wandb.Image(fig)]})
             # plt.close(fig)
             
-            cm = self.val_confusion_matrix.compute().cpu().numpy()
-            fig, ax = plt.subplots(figsize=(10, 8))
-            im = ax.imshow(cm, cmap='Blues')
-            plt.colorbar(im)
-            plt.title("Normalized Confusion Matrix")
-            plt.xlabel("Predicted")
-            plt.ylabel("True")
-            wandb.log({'val_confusion_matrix': wandb.Image(fig)})
-            # plt.close(fig)
-            
-            cm = self.val_confusion_matrix.compute().cpu().numpy()
-            fig, ax = plt.subplots(figsize=(10, 8))
-            im = ax.imshow(cm, cmap='Blues')
-            plt.colorbar(im)
-            plt.title("Normalized Confusion Matrix")
-            plt.xlabel("Predicted")
-            plt.ylabel("True")
-            wandb.log({'val_confusion_matrix': wandb.Image(fig)})
+            #cm = self.val_confusion_matrix.compute().cpu().numpy()
+            #fig, ax = plt.subplots(figsize=(10, 8))
+            #im = ax.imshow(cm, cmap='Blues')
+            #plt.colorbar(im)
+            #plt.title("Normalized Confusion Matrix")
+            #plt.xlabel("Predicted")
+            #plt.ylabel("True")
+           # self.log({'val_confusion_matrix': wandb.Image(fig)})
             plt.close(fig)
 
 
@@ -186,17 +176,14 @@ class DeBertaModel(L.LightningModule): #added inheritance to lightning module he
             self.val_confusion_matrix.reset()
             self.val_confusion_matrix.reset()
             self.val_recall.reset()
-            self.val_confusion_matrix.reset()
+           # self.val_confusion_matrix.reset()
 
 
         def predict_step(self, batch , batch_idx, dataloader_idx=0):
             preds =  self(batch["input_ids"], batch["attention_mask"], batch["entity_mask"])
             preds = torch.argmax(preds, dim=1)
             self.preds.append(preds.cpu().numpy())
-            with open("predictions.pkl", "wb") as f:
-                pickle.dump(self.preds, f)
-            self.preds.append(preds.cpu().numpy())
-            with open("predictions.pkl", "wb") as f:
+            with open("predictions_cnn.pkl", "wb") as f:
                 pickle.dump(self.preds, f)
             return preds
 
