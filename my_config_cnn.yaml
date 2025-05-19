@@ -1,8 +1,6 @@
 seed_everything: 42
-
 model:
-  class_path: model.DeBertaModel
-
+  class_path: model_cnn.DeBertaModel
 data:
   class_path: datamodule.DataModule
   init_args:
@@ -25,7 +23,7 @@ trainer:
         save_top_k: 1
         mode: max
         dirpath: "checkpoints/"
-        filename: "plat_plus_cnn"
+        filename: "best-checkpoint"
         save_weights_only: true
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
       init_args:
@@ -34,6 +32,6 @@ trainer:
     class_path: lightning.pytorch.loggers.WandbLogger
     init_args:
       project: GutBrainIE
-      name: plat_plus_cnn
+      name: yes_cnn
       log_model: true
 
