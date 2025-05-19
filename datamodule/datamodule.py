@@ -189,6 +189,7 @@ class TestDataset(Dataset):
         subject_start_token = encoding.char_to_token(self.spans[idx][0][0])
         subject_end_token = encoding.char_to_token(self.spans[idx][0][1])
         object_start_token = encoding.char_to_token(self.spans[idx][1][0])
+
         object_end_token = encoding.char_to_token(self.spans[idx][1][1])
         entity_mask = [0 for x in encoding['input_ids'].flatten()]
         for i in range(subject_start_token, subject_end_token+1):
