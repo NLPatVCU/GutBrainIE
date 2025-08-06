@@ -20,7 +20,7 @@ trainer:
         save_top_k: 1
         mode: max
         dirpath: "checkpoints/"
-        filename: "plat_plus_no_cnn"
+        filename: "plat_plus_cnn"
         save_weights_only: true
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
       init_args:
@@ -29,6 +29,6 @@ trainer:
     class_path: lightning.pytorch.loggers.WandbLogger
     init_args:
       project: GutBrainIE
-      name: plat_plus_no_cnn
+      name: plat_plus_cnn
       log_model: true
 
